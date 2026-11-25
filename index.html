@@ -8,11 +8,17 @@
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { margin: 0; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f8fafc; }
-    #map { flex: 1; height: 100%; }
-    #panel {
-      width: 400px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
-      display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+
+    #map-wrap {
+      flex: 1; position: relative; height: 100%; min-width: 0;
     }
+    #map { width: 100%; height: 100%; }
+
+    #panel {
+      width: 390px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
+      display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-shrink: 0;
+    }
+
     h2, h3 { margin: 0; font-size: 16px; }
     .row { display: flex; gap: 6px; align-items: center; }
     .between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -24,7 +30,6 @@
       background: #0f172a; color: #f8fafc; font-size: 13px;
     }
     input:focus, textarea:focus { outline: none; border-color: #3b82f6; }
-    textarea { min-height: 68px; resize: vertical; }
     button {
       padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
       font-weight: 600; font-size: 12px; color: #fff; background: #334155;
@@ -34,6 +39,68 @@
     .btn-primary { background: #2563eb; }
     .btn-danger { background: #991b1b; }
     .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    /* Нижняя плавающая панель оценки поверх карты */
+    #rating-dock {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(940px, calc(100% - 28px));
+      z-index: 900;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dock-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .dock-title-wrap {
+      display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap;
+    }
+    .dock-addr {
+      font-size: 13px; font-weight: 700; color: #f8fafc;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px;
+    }
+    .dock-colors {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 6px;
+    }
+    @media (max-width: 1220px) {
+      .dock-colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .color-btn {
+      padding: 7px 8px; border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-align: left;
+      display: flex; flex-direction: column; gap: 2px; opacity: 0.92; min-width: 0;
+    }
+    .color-btn .c-title {
+      font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .color-btn .c-desc {
+      font-weight: 400; font-size: 10px; opacity: 0.9; line-height: 1.15;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .color-btn.active {
+      border-color: #ffffff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.32);
+    }
+
+    .dock-reason-row {
+      display: flex; gap: 8px; align-items: stretch;
+    }
+    #reason {
+      flex: 1; min-height: 38px; height: 38px; max-height: 110px;
+      resize: vertical; padding: 8px 10px; line-height: 1.3;
+    }
+    #save-reason {
+      white-space: nowrap; padding: 0 14px; font-size: 12px;
+    }
 
     /* Поиск по адресу */
     .search-wrap { position: relative; }
@@ -71,30 +138,16 @@
       padding: 7px 10px; border-radius: 6px; border: 2px solid #eab308;
       background: #0f172a; color: #fde047; font-weight: 700; font-size: 12px; cursor: pointer;
     }
-    .disputed-filter-btn.active {
-      background: #eab308; color: #0f172a;
-    }
+    .disputed-filter-btn.active { background: #eab308; color: #0f172a; }
     .disputed-badge {
       background: #422006; color: #fde047; padding: 2px 7px; border-radius: 999px; font-size: 11px;
     }
-    .disputed-filter-btn.active .disputed-badge {
-      background: #0f172a; color: #fde047;
-    }
+    .disputed-filter-btn.active .disputed-badge { background: #0f172a; color: #fde047; }
 
     .disputed-banner {
       background: #422006; border: 2px solid #facc15; color: #fef08a;
       padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
     }
-
-    /* Кнопки выбора статуса дома */
-    .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-    .color-btn {
-      padding: 8px; border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-align: left;
-      display: flex; flex-direction: column; gap: 2px; opacity: 0.92;
-    }
-    .color-btn .c-title { font-weight: 700; font-size: 12px; }
-    .color-btn .c-desc { font-weight: 400; font-size: 10px; opacity: 0.9; line-height: 1.2; }
-    .color-btn.active { border-color: #ffffff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
 
     /* Ссылки на карты и поиск */
     .links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -125,14 +178,39 @@
     }
 
     .auth-badge { font-size: 12px; color: #4ade80; font-weight: 600; }
-    .warn-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 8px; border-radius: 6px; font-size: 12px; }
+    .warn-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 6px 9px; border-radius: 6px; font-size: 12px; }
     .err-text { color: #f87171; font-size: 12px; }
     .ok-text { color: #4ade80; font-size: 12px; }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <div id="map"></div>
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <!-- Плавающий нижний блок оценки -->
+    <div id="rating-dock" class="hidden">
+      <div class="dock-header">
+        <div class="dock-title-wrap">
+          <span class="dock-addr" id="dock-addr">Дом</span>
+          <span class="section-title" style="margin:0;">Ваша оценка (не перезаписывает чужие)</span>
+          <span id="save-status" class="muted"></span>
+        </div>
+        <button id="btn-close-dock" class="btn-sm" title="Снять выделение (Esc)">✕</button>
+      </div>
+
+      <div id="readonly-warn" class="warn-box hidden">
+        Режим просмотра — введите выданный пароль в правой панели, чтобы оценивать дома.
+      </div>
+
+      <div class="dock-colors" id="color-buttons"></div>
+
+      <div class="dock-reason-row">
+        <textarea id="reason" placeholder="Причина / комментарий к оценке (кирпич, козырёк, окна, арка, нет фото...) — Ctrl+Enter для сохранения"></textarea>
+        <button class="btn-primary" id="save-reason">Сохранить комментарий</button>
+      </div>
+    </div>
+  </div>
 
   <div id="panel">
     <div class="between">
@@ -196,7 +274,7 @@
     <hr style="border:none; border-top:1px solid #334155; margin:2px 0;" />
 
     <div id="empty-state" class="muted">
-      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск на площадках и поставить свою оценку.
+      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск на площадках и панель оценки внизу.
     </div>
 
     <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
@@ -241,24 +319,6 @@
         </div>
       </div>
 
-      <div id="readonly-warn" class="warn-box hidden">
-        Вы в режиме просмотра. Введите выданный пароль сверху, чтобы поставить свою оценку и комментарий.
-      </div>
-
-      <div>
-        <div class="section-title">Ваша оценка (не перезаписывает чужие)</div>
-        <div class="colors" id="color-buttons"></div>
-      </div>
-
-      <div>
-        <div class="section-title">Ваш комментарий / причина</div>
-        <textarea id="reason" placeholder="Опишите, почему выбрали этот статус (кирпич, козырёк, окна, арка, нет фото...)"></textarea>
-        <div class="between" style="margin-top:6px;">
-          <button class="btn-primary" id="save-reason" style="flex:1;">Сохранить комментарий</button>
-        </div>
-        <div id="save-status" class="muted" style="margin-top:4px;"></div>
-      </div>
-
       <div>
         <div class="section-title">Текущие оценки участников (<span id="votes-count">0</span>)</div>
         <div class="votes-list" id="votes-list"></div>
@@ -295,6 +355,11 @@
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const canvasRenderer = L.canvas({ padding: 0.5 });
     const map = L.map('map', { preferCanvas: true }).setView(DEFAULT_CENTER, 13);
+
+    // Чтобы клики и скролл по нижней панели не уходили в карту
+    const dockEl = document.getElementById('rating-dock');
+    L.DomEvent.disableClickPropagation(dockEl);
+    L.DomEvent.disableScrollPropagation(dockEl);
 
     const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxNativeZoom: 19,
@@ -511,6 +576,7 @@
       btn.className = 'color-btn';
       btn.dataset.color = key;
       btn.style.background = cfg.hex;
+      btn.title = `${cfg.label} — ${cfg.desc}`;
       btn.innerHTML = `<span class="c-title">${cfg.label}</span><span class="c-desc">${cfg.desc}</span>`;
       btn.onclick = () => saveMark(key);
       btnWrap.appendChild(btn);
@@ -569,7 +635,7 @@
       });
     }
 
-    // ---------- Стили и гарантированная перерисовка ----------
+    // ---------- Стили и перерисовка ----------
     function getStyle(id) {
       const colorKey = getBuildingColor(id);
       const cfg = COLORS[colorKey];
@@ -804,11 +870,13 @@
       forceCanvasRedraw();
 
       if (zoomTo) {
-        map.fitBounds(layer.getBounds(), { maxZoom: 18, padding: [40, 40] });
+        map.fitBounds(layer.getBounds(), { maxZoom: 18, paddingTopLeft: [40, 40], paddingBottomRight: [40, 170] });
       }
 
       const osmAddr = getOsmAddress(feature);
-      document.getElementById('b-title').textContent = osmAddr || `Здание без адреса (${id})`;
+      const titleText = osmAddr || `Здание без адреса (${id})`;
+      document.getElementById('b-title').textContent = titleText;
+      document.getElementById('dock-addr').textContent = titleText;
 
       const c = layer.getBounds().getCenter();
       selectedCoords = { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
@@ -818,9 +886,30 @@
       document.getElementById('save-status').textContent = '';
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('editor').classList.remove('hidden');
+      dockEl.classList.remove('hidden');
 
       refreshSelectedCard(true);
     }
+
+    function deselectBuilding() {
+      if (!selectedId) return;
+      const prev = selectedId;
+      selectedId = null;
+      selectedCoords = null;
+      applyBuildingVisual(prev);
+      forceCanvasRedraw();
+      document.getElementById('editor').classList.add('hidden');
+      dockEl.classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-close-dock').onclick = deselectBuilding;
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && selectedId) {
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') deselectBuilding();
+      }
+    });
 
     // ---------- Сохранение голоса ----------
     async function saveMark(colorKey) {
@@ -883,6 +972,13 @@
       }
       saveMark(normalizeColor(myVote.color));
     };
+
+    document.getElementById('reason').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('save-reason').click();
+      }
+    });
 
     // ---------- Поиск по адресу ----------
     const searchInput = document.getElementById('search-input');
