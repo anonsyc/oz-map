@@ -3,43 +3,104 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Поиск парадной — карта проверки</title>
+  <title>Карта проверки домов</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { margin: 0; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f8fafc; }
     #map { flex: 1; height: 100%; }
     #panel {
-      width: 340px; padding: 16px; background: #1e293b; border-left: 1px solid #334155;
-      display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+      width: 390px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
+      display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
     }
     h2, h3 { margin: 0; font-size: 16px; }
-    .muted { color: #94a3b8; font-size: 13px; }
-    input[type="text"], textarea {
-      width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #475569;
-      background: #0f172a; color: #f8fafc; font-size: 14px;
+    .row { display: flex; gap: 6px; align-items: center; }
+    .between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .muted { color: #94a3b8; font-size: 12px; }
+    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 5px; font-weight: 700; }
+    .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    input[type="text"], input[type="password"], textarea {
+      width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-size: 13px;
     }
-    textarea { min-height: 80px; resize: vertical; }
-    .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    input:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+    textarea { min-height: 70px; resize: vertical; }
+    button {
+      padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
+      font-weight: 600; font-size: 12px; color: #fff; background: #334155;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.15); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: #2563eb; }
+    .btn-danger { background: #991b1b; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    /* Поиск по адресу */
+    .search-wrap { position: relative; }
+    .search-results {
+      position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 1000;
+      background: #0f172a; border: 1px solid #475569; border-radius: 6px;
+      max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.45);
+    }
+    .search-item {
+      padding: 7px 10px; font-size: 13px; cursor: pointer; display: flex;
+      align-items: center; gap: 8px; border-bottom: 1px solid #1e293b;
+    }
+    .search-item:hover { background: #1e293b; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      display: inline-block; border: 1px solid rgba(255,255,255,0.45);
+    }
+
+    /* Фильтры всех цветов */
+    .filters-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .filter-chip {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      padding: 6px 8px; border-radius: 6px; border: 1px solid #334155;
+      background: #0f172a; cursor: pointer; font-size: 12px; user-select: none;
+      transition: opacity 0.15s;
+    }
+    .filter-chip.off { opacity: 0.35; text-decoration: line-through; }
+    .filter-chip-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+    .filter-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .filter-count { font-weight: 700; font-size: 11px; color: #cbd5e1; }
+
+    /* Кнопки выбора статуса дома */
+    .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
     .color-btn {
-      padding: 9px 8px; border: 2px solid transparent; border-radius: 6px; cursor: pointer;
-      font-weight: 600; font-size: 12px; color: #fff; text-align: left; opacity: 0.9;
+      padding: 8px; border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-align: left;
+      display: flex; flex-direction: column; gap: 2px; opacity: 0.92;
     }
-    .color-btn:hover { opacity: 1; }
-    .color-btn.active { border-color: #fff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+    .color-btn .c-title { font-weight: 700; font-size: 12px; }
+    .color-btn .c-desc { font-weight: 400; font-size: 10px; opacity: 0.9; line-height: 1.2; }
+    .color-btn.active { border-color: #ffffff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+
+    /* Ссылки на карты и поиск */
     .links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .link-btn {
-      display: block; text-align: center; padding: 8px; border-radius: 6px;
-      background: #334155; color: #e2e8f0; text-decoration: none; font-size: 13px; font-weight: 500;
+      display: block; text-align: center; padding: 7px 6px; border-radius: 6px;
+      background: #334155; color: #e2e8f0; text-decoration: none; font-size: 12px; font-weight: 500;
     }
     .link-btn:hover { background: #475569; }
-    .save-btn {
-      padding: 10px; border: none; border-radius: 6px; background: #2563eb;
-      color: #fff; font-weight: 600; cursor: pointer; font-size: 14px;
+    .link-btn.accent { background: #1d4ed8; }
+    .link-btn.accent:hover { background: #2563eb; }
+    .link-btn.full { grid-column: 1 / -1; }
+
+    /* История оценок */
+    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+    .history-item {
+      background: #0f172a; border: 1px solid #334155; border-left: 4px solid #64748b;
+      border-radius: 6px; padding: 7px 9px; font-size: 12px;
     }
-    .save-btn:hover { background: #1d4ed8; }
-    .stats { font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; background: #0f172a; padding: 8px; border-radius: 6px; }
-    .filter-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .history-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; font-size: 11px; color: #94a3b8; }
+    .history-user { color: #f8fafc; font-weight: 700; }
+    .history-status { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+    .history-reason { color: #e2e8f0; white-space: pre-wrap; word-break: break-word; }
+
+    .auth-badge { font-size: 12px; color: #4ade80; font-weight: 600; }
+    .warn-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 8px; border-radius: 6px; font-size: 12px; }
+    .err-text { color: #f87171; font-size: 12px; }
+    .ok-text { color: #4ade80; font-size: 12px; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -47,25 +108,65 @@
   <div id="map"></div>
 
   <div id="panel">
-    <div>
-      <h2>Карта проверки домов</h2>
-      <div class="muted" id="load-status">Загрузка домов...</div>
+    <div class="between">
+      <div>
+        <h2>Карта проверки домов</h2>
+        <div class="muted" id="load-status">Загрузка...</div>
+      </div>
+      <button id="btn-sync" class="btn-sm" title="Обновить данные с сервера">↻ Обновить</button>
+    </div>
+
+    <div class="card" id="auth-box">
+      <div id="auth-logged-out">
+        <div class="section-title">Доступ к редактированию</div>
+        <div class="row">
+          <input type="password" id="pass-input" placeholder="Введите выданный пароль" autocomplete="off" />
+          <button id="btn-login" class="btn-primary">Войти</button>
+        </div>
+        <div id="name-step" class="hidden" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+          <div class="muted">Первый вход по паролю — задайте уникальное имя (вводится один раз):</div>
+          <div class="row">
+            <input type="text" id="new-username" placeholder="Уникальное имя (2–30 симв.)" maxlength="30" />
+            <button id="btn-bind-name" class="btn-primary">Сохранить</button>
+          </div>
+        </div>
+        <div id="auth-msg" class="err-text" style="margin-top:4px;"></div>
+      </div>
+
+      <div id="auth-logged-in" class="between hidden">
+        <div>
+          <div class="muted">Режим редактирования</div>
+          <div class="auth-badge" id="active-user-label"></div>
+        </div>
+        <button id="btn-logout" class="btn-sm btn-danger">Выйти</button>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="section-title">Поиск дома по адресу</div>
+      <div class="row">
+        <input type="text" id="search-input" placeholder="Например: Ленина 45 или Кирова 12" autocomplete="off" />
+        <button id="btn-search-clear" class="btn-sm hidden">✕</button>
+      </div>
+      <div id="search-results" class="search-results hidden"></div>
     </div>
 
     <div>
-      <label class="muted">Ваше имя (сохраняется в истории правок):</label>
-      <input type="text" id="username" placeholder="Например, Иван" />
+      <div class="between" style="margin-bottom:5px;">
+        <div class="section-title" style="margin:0;">Фильтр отображения (<span id="total-count">0</span>)</div>
+        <div class="row">
+          <button id="btn-show-all" class="btn-sm">Все</button>
+          <button id="btn-only-candidates" class="btn-sm">Кандидаты</button>
+        </div>
+      </div>
+      <div class="filters-grid" id="filters-grid"></div>
     </div>
 
-    <div class="stats" id="stats"></div>
+    <hr style="border:none; border-top:1px solid #334155; margin:2px 0;" />
 
-    <label class="filter-row">
-      <input type="checkbox" id="hide-red" /> Скрыть красные (отсеянные)
-    </label>
-
-    <hr style="border-color:#334155; width:100%; margin:2px 0;" />
-
-    <div id="empty-state" class="muted">Кликните по любому дому на карте, чтобы открыть панорамы и поставить статус.</div>
+    <div id="empty-state" class="muted">
+      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск фото и поставить оценку.
+    </div>
 
     <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
       <div>
@@ -73,149 +174,415 @@
         <div class="muted" id="b-meta"></div>
       </div>
 
-      <div class="links">
-        <a id="lnk-ypano" class="link-btn" target="_blank">Яндекс Панорамы</a>
-        <a id="lnk-ymrc" class="link-btn" target="_blank">Яндекс Зеркала</a>
-        <a id="lnk-gsv" class="link-btn" target="_blank">Google StreetView</a>
-        <a id="lnk-2gis" class="link-btn" target="_blank">2ГИС (входы)</a>
+      <div>
+        <div class="section-title">Адрес для поиска (можно уточнить вручную)</div>
+        <input type="text" id="addr-override" placeholder="Улица, номер дома" />
       </div>
 
       <div>
-        <div class="muted" style="margin-bottom:6px;">Статус (клик сразу сохраняет):</div>
+        <div class="section-title">Карты и панорамы</div>
+        <div class="links">
+          <a id="lnk-ymap" class="link-btn accent" target="_blank">Я.Карты (дом)</a>
+          <a id="lnk-2gis" class="link-btn accent" target="_blank">2ГИС (дом и входы)</a>
+          <a id="lnk-ypano" class="link-btn" target="_blank">Яндекс Панорамы</a>
+          <a id="lnk-ymrc" class="link-btn" target="_blank">Яндекс Зеркала</a>
+          <a id="lnk-gmap" class="link-btn" target="_blank">Google Карты (дом)</a>
+          <a id="lnk-gsv" class="link-btn" target="_blank">Google StreetView</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Поиск фото дома (Авито, Циан, архивы)</div>
+        <div class="links">
+          <a id="lnk-g-realty" class="link-btn full" target="_blank">Google: Авито / Циан / Я.Недвижимость / Домклик</a>
+          <a id="lnk-y-search" class="link-btn" target="_blank">Яндекс (фото/подъезд)</a>
+          <a id="lnk-g-search" class="link-btn" target="_blank">Google (фото/подъезд)</a>
+          <a id="lnk-domofoto" class="link-btn" target="_blank">PhotoBuildings</a>
+          <a id="lnk-pastvu" class="link-btn" target="_blank">PastVu (архив)</a>
+          <a id="lnk-mapillary" class="link-btn full" target="_blank">Mapillary (уличные снимки)</a>
+        </div>
+      </div>
+
+      <div id="readonly-warn" class="warn-box hidden">
+        Вы в режиме просмотра. Введите выданный пароль сверху, чтобы менять статус и добавлять заметки.
+      </div>
+
+      <div>
+        <div class="section-title">Статус дома (клик сразу сохраняет)</div>
         <div class="colors" id="color-buttons"></div>
       </div>
 
       <div>
-        <div class="muted" style="margin-bottom:4px;">Причина / заметка:</div>
-        <textarea id="reason" placeholder="Например: нет арки, другой цвет кирпича..."></textarea>
+        <div class="section-title">Причина / комментарий к оценке</div>
+        <textarea id="reason" placeholder="Опишите, почему выбрали этот статус (кирпич, козырёк, окна, арка, нет фото...)"></textarea>
+        <div class="between" style="margin-top:6px;">
+          <button class="btn-primary" id="save-reason" style="flex:1;">Сохранить заметку</button>
+        </div>
+        <div id="save-status" class="muted" style="margin-top:4px;"></div>
       </div>
 
-      <button class="save-btn" id="save-reason">Сохранить заметку</button>
-      <div class="muted" id="save-status"></div>
+      <div>
+        <div class="section-title">История оценок дома</div>
+        <div class="history-list" id="history-list"></div>
+      </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // === ВСТАВЬТЕ ВАШИ ДАННЫЕ ИЗ SUPABASE ===
+    // ================= НАСТРОЙКИ =================
     const SUPABASE_URL = 'https://zzjitqmbhstglzdiampr.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_ZEGMRdNI279o7FCqN0B5hw_CTVgCJ4s';
-    // ========================================
+    const CITY_NAME = 'Орехово-Зуево';
+    const DEFAULT_CENTER = [55.8067, 38.9618];
+    // =============================================
 
     const COLORS = {
-      red:    { label: 'Точно нет',        hex: '#ef4444' },
-      orange: { label: 'Скорее нет',       hex: '#f97316' },
-      yellow: { label: 'Частично похож',   hex: '#ca8a04' },
-      blue:   { label: '1–2 отличия',      hex: '#3b82f6' },
-      green:  { label: 'Крайне похож',     hex: '#16a34a' },
-      gray:   { label: 'Не проверено',     hex: '#64748b' },
+      gray:   { label: 'Не проверено',    desc: 'По умолчанию',                hex: '#64748b', uiHex: '#94a3b8', border: '#334155', opacity: 0.36 },
+      red:    { label: 'Не подходит',     desc: 'Точно не наш дом',            hex: '#dc2626', uiHex: '#f87171', border: '#7f1d1d', opacity: 0.72 },
+      orange: { label: 'Слабое сходство', desc: 'Небольшие совпадения',        hex: '#ea580c', uiHex: '#fb923c', border: '#7c2d12', opacity: 0.78 },
+      blue:   { label: 'Почти оно',       desc: '1–2 значимых отличия',        hex: '#2563eb', uiHex: '#60a5fa', border: '#1e3a8a', opacity: 0.80 },
+      green:  { label: 'Кандидат',        desc: 'Очень похоже / без отличий',  hex: '#16a34a', uiHex: '#4ade80', border: '#052e16', opacity: 0.85 },
+      black:  { label: 'Нет данных',      desc: 'Не проверить ни одним путем', hex: '#111827', uiHex: '#e2e8f0', border: '#000000', opacity: 0.85 },
     };
 
-    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    const map = L.map('map', { preferCanvas: true }).setView([55.8067, 38.9618], 13);
+    const STATUS_ORDER = ['red', 'orange', 'blue', 'green', 'black', 'gray'];
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const canvasRenderer = L.canvas({ padding: 0.5 });
+    const map = L.map('map', { preferCanvas: true }).setView(DEFAULT_CENTER, 13);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
       maxZoom: 20,
-      attribution: '&copy; OpenStreetMap'
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
+    const buildingsGroup = L.layerGroup().addTo(map);
+
     const layersById = {};
+    const featuresById = {};
+    const searchIndex = [];
     const marks = {};
+    const visibleColors = { gray: true, red: true, orange: true, blue: true, green: true, black: true };
+
     let selectedId = null;
-    let hideRed = false;
+    let selectedCoords = null;
+    let currentPass = null;
+    let currentUser = null;
+    let isSaving = false;
+    let syncInProgress = false;
 
-    // Имя пользователя из localStorage
-    const userInput = document.getElementById('username');
-    userInput.value = localStorage.getItem('search_username') || '';
-    userInput.addEventListener('input', () => localStorage.setItem('search_username', userInput.value));
+    function normalizeColor(c) {
+      if (c === 'yellow') return 'orange';
+      if (c === 'purple') return 'black';
+      return COLORS[c] ? c : 'gray';
+    }
 
-    // Рисуем кнопки 6 цветов
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function getFeatureId(f) {
+      if (f.id) return String(f.id);
+      if (f.properties && f.properties['@id']) return String(f.properties['@id']);
+      let c = f.geometry.coordinates;
+      while (Array.isArray(c[0])) c = c[0];
+      return 'p_' + Number(c[0]).toFixed(5) + '_' + Number(c[1]).toFixed(5);
+    }
+
+    function getOsmAddress(feature) {
+      const p = (feature && feature.properties) || {};
+      return [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
+    }
+
+    function clearSession(reasonText = '') {
+      currentPass = null;
+      currentUser = null;
+      sessionStorage.removeItem('oz_map_pass');
+      sessionStorage.removeItem('oz_map_user');
+      if (reasonText) {
+        const msgEl = document.getElementById('auth-msg');
+        msgEl.className = 'err-text';
+        msgEl.textContent = reasonText;
+      }
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      const loggedIn = Boolean(currentPass && currentUser);
+      document.getElementById('auth-logged-out').classList.toggle('hidden', loggedIn);
+      document.getElementById('auth-logged-in').classList.toggle('hidden', !loggedIn);
+      document.getElementById('readonly-warn').classList.toggle('hidden', loggedIn);
+
+      if (loggedIn) {
+        document.getElementById('active-user-label').textContent = currentUser;
+      }
+
+      document.querySelectorAll('.color-btn').forEach(b => b.disabled = !loggedIn || isSaving);
+      document.getElementById('reason').disabled = !loggedIn;
+      document.getElementById('save-reason').disabled = !loggedIn || isSaving;
+    }
+
+    async function doAuth(pass, username = null) {
+      const msgEl = document.getElementById('auth-msg');
+      msgEl.textContent = 'Проверка...';
+      msgEl.className = 'muted';
+
+      const { data, error } = await db.rpc('auth_with_pass', {
+        p_pass: pass,
+        p_username: username
+      });
+
+      if (error) {
+        msgEl.className = 'err-text';
+        msgEl.textContent = 'Ошибка сервера: ' + error.message;
+        return;
+      }
+
+      if (data.status === 'ok') {
+        currentPass = pass.trim();
+        currentUser = data.username;
+        sessionStorage.setItem('oz_map_pass', currentPass);
+        sessionStorage.setItem('oz_map_user', currentUser);
+        document.getElementById('pass-input').value = '';
+        document.getElementById('new-username').value = '';
+        document.getElementById('name-step').classList.add('hidden');
+        msgEl.textContent = '';
+        updateAuthUI();
+      } else if (data.status === 'need_username') {
+        document.getElementById('name-step').classList.remove('hidden');
+        document.getElementById('new-username').focus();
+        msgEl.className = 'muted';
+        msgEl.textContent = data.message;
+      } else {
+        msgEl.className = 'err-text';
+        msgEl.textContent = data.message || 'Ошибка входа';
+      }
+    }
+
+    document.getElementById('btn-login').onclick = () => {
+      const pass = document.getElementById('pass-input').value.trim();
+      if (!pass) return;
+      doAuth(pass, null);
+    };
+    document.getElementById('pass-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-login').click();
+    });
+    document.getElementById('btn-bind-name').onclick = () => {
+      const pass = document.getElementById('pass-input').value.trim();
+      const name = document.getElementById('new-username').value.trim();
+      if (!pass || !name) return;
+      doAuth(pass, name);
+    };
+    document.getElementById('new-username').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-bind-name').click();
+    });
+    document.getElementById('btn-logout').onclick = () => clearSession('');
+
+    async function restoreSession() {
+      const savedPass = sessionStorage.getItem('oz_map_pass');
+      if (!savedPass) { updateAuthUI(); return; }
+      const { data, error } = await db.rpc('auth_with_pass', { p_pass: savedPass, p_username: null });
+      if (!error && data && data.status === 'ok') {
+        currentPass = savedPass;
+        currentUser = data.username;
+        updateAuthUI();
+      } else {
+        clearSession(data && data.status === 'banned' ? data.message : '');
+      }
+    }
+
     const btnWrap = document.getElementById('color-buttons');
-    Object.entries(COLORS).forEach(([key, cfg]) => {
+    STATUS_ORDER.forEach(key => {
+      const cfg = COLORS[key];
       const btn = document.createElement('button');
       btn.className = 'color-btn';
       btn.dataset.color = key;
       btn.style.background = cfg.hex;
-      btn.textContent = cfg.label;
+      btn.innerHTML = `<span class="c-title">${cfg.label}</span><span class="c-desc">${cfg.desc}</span>`;
       btn.onclick = () => saveMark(key);
       btnWrap.appendChild(btn);
     });
 
-    document.getElementById('save-reason').onclick = () => {
-      const current = (marks[selectedId] && marks[selectedId].color) || 'gray';
-      saveMark(current);
+    const filtersWrap = document.getElementById('filters-grid');
+    STATUS_ORDER.forEach(key => {
+      const cfg = COLORS[key];
+      const chip = document.createElement('div');
+      chip.className = 'filter-chip';
+      chip.dataset.color = key;
+      chip.title = cfg.desc;
+      chip.innerHTML = `
+        <span class="filter-chip-left">
+          <span class="dot" style="background:${cfg.hex}"></span>
+          <span class="filter-chip-name">${cfg.label}</span>
+        </span>
+        <span class="filter-count" id="cnt-${key}">0</span>
+      `;
+      chip.onclick = () => {
+        visibleColors[key] = !visibleColors[key];
+        chip.classList.toggle('off', !visibleColors[key]);
+        refreshAllLayers();
+      };
+      filtersWrap.appendChild(chip);
+    });
+
+    document.getElementById('btn-show-all').onclick = () => {
+      STATUS_ORDER.forEach(k => visibleColors[k] = true);
+      syncFilterChipsUI();
+      refreshAllLayers();
     };
 
-    document.getElementById('hide-red').onchange = (e) => {
-      hideRed = e.target.checked;
-      Object.keys(layersById).forEach(updateStyle);
+    document.getElementById('btn-only-candidates').onclick = () => {
+      STATUS_ORDER.forEach(k => visibleColors[k] = (k === 'green' || k === 'blue' || k === 'orange'));
+      syncFilterChipsUI();
+      refreshAllLayers();
     };
+
+    function syncFilterChipsUI() {
+      document.querySelectorAll('.filter-chip').forEach(ch => {
+        ch.classList.toggle('off', !visibleColors[ch.dataset.color]);
+      });
+    }
+
+    function getBuildingColor(id) {
+      return normalizeColor(marks[id] && marks[id].color);
+    }
 
     function getStyle(id) {
-      const colorKey = (marks[id] && marks[id].color) || 'gray';
-      const isHidden = hideRed && colorKey === 'red' && id !== selectedId;
+      const colorKey = getBuildingColor(id);
+      const cfg = COLORS[colorKey];
+      const isSelected = id === selectedId;
       return {
-        fillColor: COLORS[colorKey].hex,
-        fillOpacity: isHidden ? 0 : (colorKey === 'gray' ? 0.35 : 0.72),
-        color: id === selectedId ? '#ffffff' : '#1e293b',
-        weight: id === selectedId ? 3 : 1,
-        opacity: isHidden ? 0 : 0.9,
+        fillColor: cfg.hex,
+        fillOpacity: cfg.opacity,
+        color: isSelected ? '#ffffff' : cfg.border,
+        weight: isSelected ? 3.5 : 1.2,
+        opacity: 0.95
       };
     }
 
-    function updateStyle(id) {
-      if (layersById[id]) layersById[id].setStyle(getStyle(id));
+    function applyBuildingVisual(id) {
+      const layer = layersById[id];
+      if (!layer) return;
+
+      const colorKey = getBuildingColor(id);
+      const shouldShow = visibleColors[colorKey] || id === selectedId;
+      const isOnMap = buildingsGroup.hasLayer(layer);
+
+      if (shouldShow && !isOnMap) {
+        buildingsGroup.addLayer(layer);
+      } else if (!shouldShow && isOnMap) {
+        buildingsGroup.removeLayer(layer);
+      }
+
+      if (shouldShow) {
+        layer.setStyle(getStyle(id));
+        if (id === selectedId) layer.bringToFront();
+        if (typeof layer.redraw === 'function') layer.redraw();
+      }
+    }
+
+    function forceCanvasRedraw() {
+      if (canvasRenderer && typeof canvasRenderer._redraw === 'function') {
+        canvasRenderer._redraw();
+      }
+    }
+
+    function refreshAllLayers() {
+      Object.keys(layersById).forEach(applyBuildingVisual);
+      forceCanvasRedraw();
     }
 
     function updateStats() {
-      const counts = { red: 0, orange: 0, yellow: 0, blue: 0, green: 0, gray: 0 };
-      const total = Object.keys(layersById).length;
-      let marked = 0;
-      Object.values(marks).forEach(m => {
-        if (counts[m.color] !== undefined && m.color !== 'gray') {
-          counts[m.color]++;
-          marked++;
-        }
+      const counts = { gray: 0, red: 0, orange: 0, blue: 0, green: 0, black: 0 };
+      const ids = Object.keys(layersById);
+      ids.forEach(id => counts[getBuildingColor(id)]++);
+      document.getElementById('total-count').textContent = ids.length;
+      STATUS_ORDER.forEach(k => {
+        const el = document.getElementById('cnt-' + k);
+        if (el) el.textContent = counts[k];
       });
-      counts.gray = total - marked;
-      document.getElementById('stats').innerHTML =
-        `<span>Всего: <b>${total}</b></span>` +
-        Object.entries(COLORS).map(([k, v]) =>
-          `<span style="color:${v.hex}">● ${counts[k]}</span>`
-        ).join('');
     }
 
-    function selectBuilding(id, feature, layer) {
-      const prev = selectedId;
-      selectedId = id;
-      if (prev) updateStyle(prev);
-      updateStyle(id);
+    function updateExternalLinks(lat, lng, addrText) {
+      const cleanAddr = (addrText || '').trim();
+      const fullAddr = cleanAddr ? `${CITY_NAME}, ${cleanAddr}` : '';
 
-      const p = feature.properties || {};
-      const addr = [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
-      const levels = p['building:levels'] ? ` • Этажей: ${p['building:levels']}` : '';
-      document.getElementById('b-title').textContent = addr || `Здание (${id})`;
+      document.getElementById('lnk-ymap').href = fullAddr
+        ? `https://yandex.ru/maps/?text=${encodeURIComponent(fullAddr)}&ll=${lng}%2C${lat}&z=18`
+        : `https://yandex.ru/maps/?ll=${lng}%2C${lat}&pt=${lng}%2C${lat}&z=18`;
 
-      const mark = marks[id] || { color: 'gray', reason: '', updated_by: '' };
-      document.getElementById('b-meta').textContent =
-        (mark.updated_by ? `Отметил: ${mark.updated_by}` : 'Еще не проверялось') + levels;
+      document.getElementById('lnk-2gis').href = fullAddr
+        ? `https://2gis.ru/search/${encodeURIComponent(fullAddr)}?m=${lng}%2C${lat}%2F18`
+        : `https://2gis.ru/?m=${lng}%2C${lat}%2F18`;
 
-      // Ссылки на панорамы по центру дома
-      const c = layer.getBounds().getCenter();
-      const lat = c.lat.toFixed(6);
-      const lng = c.lng.toFixed(6);
+      document.getElementById('lnk-gmap').href = fullAddr
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`
+        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
       document.getElementById('lnk-ypano').href = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&panorama%5Bpoint%5D=${lng}%2C${lat}&z=18`;
       document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
       document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
-      document.getElementById('lnk-2gis').href  = `https://2gis.ru/?m=${lng}%2C${lat}%2F18`;
 
-      document.getElementById('reason').value = mark.reason || '';
-      document.getElementById('save-status').textContent = '';
-      highlightActiveColor(mark.color);
+      const qAddr = cleanAddr || `${lat}, ${lng}`;
+      const realtyQuery = `"${CITY_NAME}" "${qAddr}" (site:avito.ru OR site:cian.ru OR site:realty.ya.ru OR site:domclick.ru OR site:photobuildings.com)`;
+      document.getElementById('lnk-g-realty').href = `https://www.google.com/search?q=${encodeURIComponent(realtyQuery)}`;
+      document.getElementById('lnk-y-search').href = `https://yandex.ru/search/?text=${encodeURIComponent(`${CITY_NAME} ${qAddr} подъезд авито циан`)}`;
+      document.getElementById('lnk-g-search').href = `https://www.google.com/search?q=${encodeURIComponent(`"${CITY_NAME}" "${qAddr}" подъезд OR дом OR фасад`)}`;
+      document.getElementById('lnk-domofoto').href = `https://www.google.com/search?q=${encodeURIComponent(`site:photobuildings.com "${CITY_NAME}" "${qAddr}"`)}`;
+      document.getElementById('lnk-pastvu').href   = `https://pastvu.com/?g=${lat},${lng}&z=17`;
+      document.getElementById('lnk-mapillary').href = `https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=17`;
+    }
 
-      document.getElementById('empty-state').classList.add('hidden');
-      document.getElementById('editor').classList.remove('hidden');
+    document.getElementById('addr-override').addEventListener('input', e => {
+      if (selectedCoords) {
+        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, e.target.value);
+      }
+    });
+
+    function renderHistory(mark) {
+      const wrap = document.getElementById('history-list');
+      const items = (mark && Array.isArray(mark.history) && mark.history.length > 0)
+        ? [...mark.history].reverse()
+        : (mark && mark.updated_by ? [{ user: mark.updated_by, color: mark.color, reason: mark.reason, at: mark.updated_at }] : []);
+
+      if (items.length === 0) {
+        wrap.innerHTML = '<div class="muted">Оценок пока нет.</div>';
+        return;
+      }
+
+      wrap.innerHTML = items.map(item => {
+        const cKey = normalizeColor(item.color);
+        const cfg = COLORS[cKey];
+        const note = item.reason ? `<div class="history-reason">${escapeHtml(item.reason)}</div>` : '<div class="muted">Без комментария</div>';
+        return `
+          <div class="history-item" style="border-left-color:${cfg.uiHex}">
+            <div class="history-head">
+              <span class="history-user">${escapeHtml(item.user || 'Неизвестно')}</span>
+              <span>${escapeHtml(formatDate(item.at))}</span>
+            </div>
+            <div class="history-status" style="color:${cfg.uiHex}">
+              <span class="dot" style="background:${cfg.hex}"></span>
+              <span>${escapeHtml(cfg.label)}</span>
+            </div>
+            ${note}
+          </div>
+        `;
+      }).join('');
     }
 
     function highlightActiveColor(colorKey) {
@@ -224,103 +591,327 @@
       });
     }
 
+    function selectBuilding(id, zoomTo = false) {
+      const feature = featuresById[id];
+      const layer = layersById[id];
+      if (!feature || !layer) return;
+
+      const prev = selectedId;
+      selectedId = id;
+      if (prev && prev !== id) applyBuildingVisual(prev);
+      applyBuildingVisual(id);
+      forceCanvasRedraw();
+
+      if (zoomTo) {
+        map.fitBounds(layer.getBounds(), { maxZoom: 18, padding: [40, 40] });
+      }
+
+      const p = feature.properties || {};
+      const osmAddr = getOsmAddress(feature);
+      const levels = p['building:levels'] ? `Этажей: ${p['building:levels']}` : '';
+      document.getElementById('b-title').textContent = osmAddr || `Здание без адреса (${id})`;
+
+      const mark = marks[id] || null;
+      const lastInfo = mark && mark.updated_by
+        ? `Последняя правка: ${mark.updated_by} (${formatDate(mark.updated_at)})`
+        : 'Еще не проверялось';
+      document.getElementById('b-meta').textContent = [lastInfo, levels].filter(Boolean).join(' • ');
+
+      const c = layer.getBounds().getCenter();
+      selectedCoords = { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
+      document.getElementById('addr-override').value = osmAddr;
+      updateExternalLinks(selectedCoords.lat, selectedCoords.lng, osmAddr);
+
+      const currentColor = getBuildingColor(id);
+      highlightActiveColor(currentColor);
+      document.getElementById('reason').value = (mark && mark.reason) || '';
+      document.getElementById('save-status').textContent = '';
+      renderHistory(mark);
+
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+      updateAuthUI();
+    }
+
     async function saveMark(colorKey) {
       if (!selectedId) return;
-      const payload = {
-        building_id: selectedId,
-        color: colorKey,
-        reason: document.getElementById('reason').value.trim(),
-        updated_by: userInput.value.trim() || 'Аноним',
-        updated_at: new Date().toISOString()
-      };
-      marks[selectedId] = payload;
-      updateStyle(selectedId);
-      highlightActiveColor(colorKey);
-      updateStats();
-      document.getElementById('save-status').textContent = 'Сохранение...';
-
-      const { error } = await db.from('building_marks').upsert(payload);
-      document.getElementById('save-status').textContent = error
-        ? 'Ошибка сохранения: ' + error.message
-        : 'Сохранено в общую базу';
-    }
-
-    function getFeatureId(f) {
-  if (f.id) return String(f.id);
-  if (f.properties && f.properties['@id']) return String(f.properties['@id']);
-  let c = f.geometry.coordinates;
-  while (Array.isArray(c[0])) c = c[0];
-  return 'p_' + Number(c[0]).toFixed(5) + '_' + Number(c[1]).toFixed(5);
-}
-
-async function init() {
-  const statusEl = document.getElementById('load-status');
-
-  // 1. Сначала грузим слепок домов — карта сразу заработает, даже если Supabase недоступен
-  try {
-    statusEl.textContent = 'Загрузка buildings.geojson...';
-    const res = await fetch('./buildings.geojson');
-    if (!res.ok) throw new Error(`Файл buildings.geojson не найден (HTTP ${res.status})`);
-    const geojson = await res.json();
-
-    const geoLayer = L.geoJSON(geojson, {
-      filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
-      style: f => getStyle(getFeatureId(f)),
-      onEachFeature: (feature, layer) => {
-        const id = getFeatureId(feature);
-        layersById[id] = layer;
-        layer.on('click', () => selectBuilding(id, feature, layer));
+      if (!currentPass || !currentUser) {
+        document.getElementById('pass-input').focus();
+        return;
       }
-    }).addTo(map);
 
-    if (Object.keys(layersById).length === 0) {
-      throw new Error('В buildings.geojson нет полигонов домов');
-    }
+      isSaving = true;
+      updateAuthUI();
+      const saveStatus = document.getElementById('save-status');
+      saveStatus.className = 'muted';
+      saveStatus.textContent = 'Сохранение...';
 
-    map.fitBounds(geoLayer.getBounds());
-    updateStats();
-  } catch (err) {
-    statusEl.style.color = '#f87171';
-    statusEl.textContent = 'Ошибка карты: ' + err.message;
-    console.error(err);
-    return;
-  }
+      const reasonVal = document.getElementById('reason').value.trim();
 
-  // 2. Затем подтягиваем отметки из Supabase
-  try {
-    statusEl.textContent = 'Подключение к Supabase...';
-    const { data, error } = await db.from('building_marks').select('*');
-    if (error) throw error;
-
-    if (data) {
-      data.forEach(row => {
-        marks[row.building_id] = row;
-        updateStyle(row.building_id);
+      const { data, error } = await db.rpc('save_building_mark', {
+        p_pass: currentPass,
+        p_building_id: selectedId,
+        p_color: colorKey,
+        p_reason: reasonVal
       });
-    }
-    updateStats();
-    statusEl.style.color = '#4ade80';
-    statusEl.textContent = 'Готово к работе (синхронизация онлайн)';
 
-    db.channel('marks-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'building_marks' }, payload => {
-        const row = payload.new;
-        if (!row || !row.building_id) return;
-        marks[row.building_id] = row;
-        updateStyle(row.building_id);
-        updateStats();
-        if (row.building_id === selectedId) {
-          document.getElementById('reason').value = row.reason || '';
-          highlightActiveColor(row.color);
+      isSaving = false;
+
+      if (error) {
+        if (/заблокирован|неверный пароль/i.test(error.message)) {
+          clearSession(error.message);
+        } else {
+          updateAuthUI();
         }
-      })
-      .subscribe();
-  } catch (err) {
-    statusEl.style.color = '#fbbf24';
-    statusEl.textContent = 'Нет связи с Supabase: ' + err.message;
-    console.error(err);
-  }
-}
+        saveStatus.className = 'err-text';
+        saveStatus.textContent = 'Ошибка: ' + error.message;
+        return;
+      }
+
+      updateAuthUI();
+
+      if (data && data.building_id) {
+        marks[data.building_id] = data;
+        applyBuildingVisual(data.building_id);
+        forceCanvasRedraw();
+        updateStats();
+        highlightActiveColor(getBuildingColor(data.building_id));
+        renderHistory(data);
+        const p = (featuresById[data.building_id] && featuresById[data.building_id].properties) || {};
+        const levels = p['building:levels'] ? ` • Этажей: ${p['building:levels']}` : '';
+        document.getElementById('b-meta').textContent =
+          `Последняя правка: ${data.updated_by} (${formatDate(data.updated_at)})${levels}`;
+      }
+
+      saveStatus.className = 'ok-text';
+      saveStatus.textContent = 'Сохранено в общую базу';
+    }
+
+    document.getElementById('save-reason').onclick = () => {
+      if (!selectedId) return;
+      saveMark(getBuildingColor(selectedId));
+    };
+
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    const searchClear = document.getElementById('btn-search-clear');
+
+    function renderSearch(query) {
+      const q = query.trim().toLowerCase().replace(/ё/g, 'е');
+      searchClear.classList.toggle('hidden', !q);
+      if (q.length < 2) {
+        searchResults.classList.add('hidden');
+        return;
+      }
+
+      const tokens = q.split(/[\s,]+/).filter(Boolean);
+      const matches = searchIndex
+        .filter(item => tokens.every(t => item.norm.includes(t)))
+        .slice(0, 20);
+
+      let html = matches.map(m => {
+        const hex = COLORS[getBuildingColor(m.id)].hex;
+        return `<div class="search-item" data-id="${escapeHtml(m.id)}">
+          <span class="dot" style="background:${hex}"></span>
+          <span>${escapeHtml(m.addr)}</span>
+        </div>`;
+      }).join('');
+
+      html += `<div class="search-item" data-nominatim="1" style="color:#93c5fd;">
+        <span>🔍 Искать «${escapeHtml(query.trim())}» на карте (OSM)</span>
+      </div>`;
+
+      searchResults.innerHTML = html;
+      searchResults.classList.remove('hidden');
+
+      searchResults.querySelectorAll('.search-item[data-id]').forEach(el => {
+        el.onclick = () => {
+          searchResults.classList.add('hidden');
+          selectBuilding(el.dataset.id, true);
+        };
+      });
+
+      const nomBtn = searchResults.querySelector('.search-item[data-nominatim]');
+      if (nomBtn) {
+        nomBtn.onclick = async () => {
+          nomBtn.textContent = 'Ищем координаты в OSM...';
+          try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${CITY_NAME}, ${query.trim()}`)}`;
+            const res = await fetch(url);
+            const arr = await res.json();
+            if (arr && arr[0]) {
+              map.setView([Number(arr[0].lat), Number(arr[0].lon)], 18);
+              searchResults.classList.add('hidden');
+            } else {
+              nomBtn.textContent = 'Адрес не найден в OSM';
+            }
+          } catch {
+            nomBtn.textContent = 'Ошибка поиска OSM';
+          }
+        };
+      }
+    }
+
+    searchInput.addEventListener('input', e => renderSearch(e.target.value));
+    searchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const first = searchResults.querySelector('.search-item');
+        if (first) first.click();
+      }
+    });
+    searchClear.onclick = () => {
+      searchInput.value = '';
+      searchResults.classList.add('hidden');
+      searchClear.classList.add('hidden');
+    };
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
+    });
+
+    async function syncMarks(showStatus = false) {
+      if (syncInProgress) return;
+      syncInProgress = true;
+      const statusEl = document.getElementById('load-status');
+      if (showStatus) {
+        statusEl.style.color = '#94a3b8';
+        statusEl.textContent = 'Синхронизация...';
+      }
+
+      try {
+        const pageSize = 1000;
+        let from = 0;
+        const freshMap = {};
+
+        while (true) {
+          const { data, error } = await db
+            .from('building_marks')
+            .select('*')
+            .order('building_id', { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+
+          data.forEach(row => { freshMap[row.building_id] = row; });
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+
+        const changedIds = new Set();
+        Object.keys(marks).forEach(id => {
+          if (!freshMap[id]) { delete marks[id]; changedIds.add(id); }
+        });
+        Object.entries(freshMap).forEach(([id, row]) => {
+          const old = marks[id];
+          if (!old || old.updated_at !== row.updated_at || old.color !== row.color || old.reason !== row.reason) {
+            marks[id] = row;
+            changedIds.add(id);
+          }
+        });
+
+        if (changedIds.size > 0) {
+          changedIds.forEach(applyBuildingVisual);
+          forceCanvasRedraw();
+          updateStats();
+          if (selectedId && changedIds.has(selectedId)) {
+            const cur = marks[selectedId];
+            highlightActiveColor(getBuildingColor(selectedId));
+            renderHistory(cur);
+            if (document.activeElement !== document.getElementById('reason')) {
+              document.getElementById('reason').value = (cur && cur.reason) || '';
+            }
+          }
+        }
+
+        statusEl.style.color = '#4ade80';
+        statusEl.textContent = 'Онлайн • ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch (err) {
+        statusEl.style.color = '#fbbf24';
+        statusEl.textContent = 'Ошибка синхронизации: ' + err.message;
+        console.error(err);
+      } finally {
+        syncInProgress = false;
+      }
+    }
+
+    document.getElementById('btn-sync').onclick = () => syncMarks(true);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncMarks(false);
+    });
+
+    async function init() {
+      const statusEl = document.getElementById('load-status');
+      await restoreSession();
+
+      try {
+        statusEl.textContent = 'Загрузка buildings.geojson...';
+        const res = await fetch('./buildings.geojson', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`buildings.geojson не найден (HTTP ${res.status})`);
+        const geojson = await res.json();
+
+        const bounds = L.latLngBounds();
+
+        L.geoJSON(geojson, {
+          renderer: canvasRenderer,
+          filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
+          onEachFeature: (feature, layer) => {
+            const id = getFeatureId(feature);
+            layersById[id] = layer;
+            featuresById[id] = feature;
+            layer.setStyle(getStyle(id));
+            layer.on('click', () => selectBuilding(id, false));
+            buildingsGroup.addLayer(layer);
+            bounds.extend(layer.getBounds());
+
+            const addr = getOsmAddress(feature);
+            if (addr) {
+              searchIndex.push({
+                id,
+                addr,
+                norm: addr.toLowerCase().replace(/ё/g, 'е')
+              });
+            }
+          }
+        });
+
+        if (Object.keys(layersById).length === 0) {
+          throw new Error('В buildings.geojson нет полигонов домов');
+        }
+
+        searchIndex.sort((a, b) => a.addr.localeCompare(b.addr, 'ru', { numeric: true }));
+        map.fitBounds(bounds);
+        updateStats();
+      } catch (err) {
+        statusEl.style.color = '#f87171';
+        statusEl.textContent = 'Ошибка карты: ' + err.message;
+        console.error(err);
+        return;
+      }
+
+      await syncMarks(true);
+
+      db.channel('marks-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'building_marks' }, payload => {
+          const row = payload.new;
+          if (!row || !row.building_id) return;
+          marks[row.building_id] = row;
+          applyBuildingVisual(row.building_id);
+          forceCanvasRedraw();
+          updateStats();
+          if (row.building_id === selectedId) {
+            highlightActiveColor(getBuildingColor(row.building_id));
+            renderHistory(row);
+            if (document.activeElement !== document.getElementById('reason')) {
+              document.getElementById('reason').value = row.reason || '';
+            }
+          }
+        })
+        .subscribe();
+
+      setInterval(() => {
+        if (!document.hidden) syncMarks(false);
+      }, 15000);
+    }
 
     init();
   </script>
