@@ -165,7 +165,7 @@
     <hr style="border:none; border-top:1px solid #334155; margin:2px 0;" />
 
     <div id="empty-state" class="muted">
-      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск фото и поставить оценку.
+      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск на площадках и поставить оценку.
     </div>
 
     <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
@@ -192,14 +192,17 @@
       </div>
 
       <div>
-        <div class="section-title">Поиск фото дома (Авито, Циан, архивы)</div>
+        <div class="section-title">Поиск дома на площадках (Google / Яндекс)</div>
         <div class="links">
-          <a id="lnk-g-realty" class="link-btn full" target="_blank">Google: Авито / Циан / Я.Недвижимость / Домклик</a>
-          <a id="lnk-y-search" class="link-btn" target="_blank">Яндекс (фото/подъезд)</a>
-          <a id="lnk-g-search" class="link-btn" target="_blank">Google (фото/подъезд)</a>
-          <a id="lnk-domofoto" class="link-btn" target="_blank">PhotoBuildings</a>
-          <a id="lnk-pastvu" class="link-btn" target="_blank">PastVu (архив)</a>
-          <a id="lnk-mapillary" class="link-btn full" target="_blank">Mapillary (уличные снимки)</a>
+          <a id="lnk-avito-g" class="link-btn" target="_blank">Авито (Google)</a>
+          <a id="lnk-avito-y" class="link-btn" target="_blank">Авито (Яндекс)</a>
+          <a id="lnk-cian-g" class="link-btn" target="_blank">Циан (Google)</a>
+          <a id="lnk-cian-y" class="link-btn" target="_blank">Циан (Яндекс)</a>
+          <a id="lnk-yrealty-g" class="link-btn" target="_blank">Я.Недвиж. (Google)</a>
+          <a id="lnk-yrealty-y" class="link-btn" target="_blank">Я.Недвиж. (Яндекс)</a>
+          <a id="lnk-domclick-g" class="link-btn" target="_blank">Домклик (Google)</a>
+          <a id="lnk-domclick-y" class="link-btn" target="_blank">Домклик (Яндекс)</a>
+          <a id="lnk-pastvu" class="link-btn full" target="_blank">PastVu (архивные фото)</a>
         </div>
       </div>
 
@@ -253,11 +256,30 @@
     const canvasRenderer = L.canvas({ padding: 0.5 });
     const map = L.map('map', { preferCanvas: true }).setView(DEFAULT_CENTER, 13);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
+    const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxNativeZoom: 19,
       maxZoom: 20,
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
-    }).addTo(map);
+      attribution: '&copy; OpenStreetMap'
+    });
+
+    const esriSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 18,
+      maxZoom: 20,
+      attribution: '&copy; Esri'
+    });
+
+    const esriMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 18,
+      maxZoom: 20,
+      attribution: '&copy; Esri'
+    });
+
+    osmLayer.addTo(map);
+    L.control.layers({
+      'Карта (OSM)': osmLayer,
+      'Спутник': esriSatLayer,
+      'Резерв (Esri)': esriMapLayer
+    }, null, { position: 'topleft' }).addTo(map);
 
     const buildingsGroup = L.layerGroup().addTo(map);
 
@@ -522,6 +544,7 @@
       const cleanAddr = (addrText || '').trim();
       const fullAddr = cleanAddr ? `${CITY_NAME}, ${cleanAddr}` : '';
 
+      // Карты и панорамы
       document.getElementById('lnk-ymap').href = fullAddr
         ? `https://yandex.ru/maps/?text=${encodeURIComponent(fullAddr)}&ll=${lng}%2C${lat}&z=18`
         : `https://yandex.ru/maps/?ll=${lng}%2C${lat}&pt=${lng}%2C${lat}&z=18`;
@@ -538,14 +561,20 @@
       document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
       document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
 
-      const qAddr = cleanAddr || `${lat}, ${lng}`;
-      const realtyQuery = `"${CITY_NAME}" "${qAddr}" (site:avito.ru OR site:cian.ru OR site:realty.ya.ru OR site:domclick.ru OR site:photobuildings.com)`;
-      document.getElementById('lnk-g-realty').href = `https://www.google.com/search?q=${encodeURIComponent(realtyQuery)}`;
-      document.getElementById('lnk-y-search').href = `https://yandex.ru/search/?text=${encodeURIComponent(`${CITY_NAME} ${qAddr} подъезд авито циан`)}`;
-      document.getElementById('lnk-g-search').href = `https://www.google.com/search?q=${encodeURIComponent(`"${CITY_NAME}" "${qAddr}" подъезд OR дом OR фасад`)}`;
-      document.getElementById('lnk-domofoto').href = `https://www.google.com/search?q=${encodeURIComponent(`site:photobuildings.com "${CITY_NAME}" "${qAddr}"`)}`;
-      document.getElementById('lnk-pastvu').href   = `https://pastvu.com/?g=${lat},${lng}&z=17`;
-      document.getElementById('lnk-mapillary').href = `https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=17`;
+      // Отдельный поиск по каждой площадке в Google и Яндексе
+      const qAddr = cleanAddr || `${lat} ${lng}`;
+      const makeGoogle = domain => `https://www.google.com/search?q=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
+      const makeYandex = domain => `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
+
+      document.getElementById('lnk-avito-g').href    = makeGoogle('avito.ru');
+      document.getElementById('lnk-avito-y').href    = makeYandex('avito.ru');
+      document.getElementById('lnk-cian-g').href     = makeGoogle('cian.ru');
+      document.getElementById('lnk-cian-y').href     = makeYandex('cian.ru');
+      document.getElementById('lnk-yrealty-g').href  = makeGoogle('realty.ya.ru');
+      document.getElementById('lnk-yrealty-y').href  = makeYandex('realty.ya.ru');
+      document.getElementById('lnk-domclick-g').href = makeGoogle('domclick.ru');
+      document.getElementById('lnk-domclick-y').href = makeYandex('domclick.ru');
+      document.getElementById('lnk-pastvu').href     = `https://pastvu.com/?g=${lat},${lng}&z=17`;
     }
 
     document.getElementById('addr-override').addEventListener('input', e => {
