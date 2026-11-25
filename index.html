@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Поиск парадной — карта проверки</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f8fafc; }
+    #map { flex: 1; height: 100%; }
+    #panel {
+      width: 340px; padding: 16px; background: #1e293b; border-left: 1px solid #334155;
+      display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+    }
+    h2, h3 { margin: 0; font-size: 16px; }
+    .muted { color: #94a3b8; font-size: 13px; }
+    input[type="text"], textarea {
+      width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-size: 14px;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .color-btn {
+      padding: 9px 8px; border: 2px solid transparent; border-radius: 6px; cursor: pointer;
+      font-weight: 600; font-size: 12px; color: #fff; text-align: left; opacity: 0.9;
+    }
+    .color-btn:hover { opacity: 1; }
+    .color-btn.active { border-color: #fff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+    .links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .link-btn {
+      display: block; text-align: center; padding: 8px; border-radius: 6px;
+      background: #334155; color: #e2e8f0; text-decoration: none; font-size: 13px; font-weight: 500;
+    }
+    .link-btn:hover { background: #475569; }
+    .save-btn {
+      padding: 10px; border: none; border-radius: 6px; background: #2563eb;
+      color: #fff; font-weight: 600; cursor: pointer; font-size: 14px;
+    }
+    .save-btn:hover { background: #1d4ed8; }
+    .stats { font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; background: #0f172a; padding: 8px; border-radius: 6px; }
+    .filter-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="panel">
+    <div>
+      <h2>Карта проверки домов</h2>
+      <div class="muted" id="load-status">Загрузка домов...</div>
+    </div>
+
+    <div>
+      <label class="muted">Ваше имя (сохраняется в истории правок):</label>
+      <input type="text" id="username" placeholder="Например, Иван" />
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <label class="filter-row">
+      <input type="checkbox" id="hide-red" /> Скрыть красные (отсеянные)
+    </label>
+
+    <hr style="border-color:#334155; width:100%; margin:2px 0;" />
+
+    <div id="empty-state" class="muted">Кликните по любому дому на карте, чтобы открыть панорамы и поставить статус.</div>
+
+    <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <h3 id="b-title">Дом</h3>
+        <div class="muted" id="b-meta"></div>
+      </div>
+
+      <div class="links">
+        <a id="lnk-ypano" class="link-btn" target="_blank">Яндекс Панорамы</a>
+        <a id="lnk-ymrc" class="link-btn" target="_blank">Яндекс Зеркала</a>
+        <a id="lnk-gsv" class="link-btn" target="_blank">Google StreetView</a>
+        <a id="lnk-2gis" class="link-btn" target="_blank">2ГИС (входы)</a>
+      </div>
+
+      <div>
+        <div class="muted" style="margin-bottom:6px;">Статус (клик сразу сохраняет):</div>
+        <div class="colors" id="color-buttons"></div>
+      </div>
+
+      <div>
+        <div class="muted" style="margin-bottom:4px;">Причина / заметка:</div>
+        <textarea id="reason" placeholder="Например: нет арки, другой цвет кирпича..."></textarea>
+      </div>
+
+      <button class="save-btn" id="save-reason">Сохранить заметку</button>
+      <div class="muted" id="save-status"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // === ВСТАВЬТЕ ВАШИ ДАННЫЕ ИЗ SUPABASE ===
+    const SUPABASE_URL = 'https://zzjitqmbhstglzdiampr.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_ZEGMRdNI279o7FCqN0B5hw_CTVgCJ4s';
+    // ========================================
+
+    const COLORS = {
+      red:    { label: 'Точно нет',        hex: '#ef4444' },
+      orange: { label: 'Скорее нет',       hex: '#f97316' },
+      yellow: { label: 'Частично похож',   hex: '#ca8a04' },
+      blue:   { label: '1–2 отличия',      hex: '#3b82f6' },
+      green:  { label: 'Крайне похож',     hex: '#16a34a' },
+      gray:   { label: 'Не проверено',     hex: '#64748b' },
+    };
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const map = L.map('map', { preferCanvas: true }).setView([55.8067, 38.9618], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const layersById = {};
+    const marks = {};
+    let selectedId = null;
+    let hideRed = false;
+
+    // Имя пользователя из localStorage
+    const userInput = document.getElementById('username');
+    userInput.value = localStorage.getItem('search_username') || '';
+    userInput.addEventListener('input', () => localStorage.setItem('search_username', userInput.value));
+
+    // Рисуем кнопки 6 цветов
+    const btnWrap = document.getElementById('color-buttons');
+    Object.entries(COLORS).forEach(([key, cfg]) => {
+      const btn = document.createElement('button');
+      btn.className = 'color-btn';
+      btn.dataset.color = key;
+      btn.style.background = cfg.hex;
+      btn.textContent = cfg.label;
+      btn.onclick = () => saveMark(key);
+      btnWrap.appendChild(btn);
+    });
+
+    document.getElementById('save-reason').onclick = () => {
+      const current = (marks[selectedId] && marks[selectedId].color) || 'gray';
+      saveMark(current);
+    };
+
+    document.getElementById('hide-red').onchange = (e) => {
+      hideRed = e.target.checked;
+      Object.keys(layersById).forEach(updateStyle);
+    };
+
+    function getStyle(id) {
+      const colorKey = (marks[id] && marks[id].color) || 'gray';
+      const isHidden = hideRed && colorKey === 'red' && id !== selectedId;
+      return {
+        fillColor: COLORS[colorKey].hex,
+        fillOpacity: isHidden ? 0 : (colorKey === 'gray' ? 0.35 : 0.72),
+        color: id === selectedId ? '#ffffff' : '#1e293b',
+        weight: id === selectedId ? 3 : 1,
+        opacity: isHidden ? 0 : 0.9,
+      };
+    }
+
+    function updateStyle(id) {
+      if (layersById[id]) layersById[id].setStyle(getStyle(id));
+    }
+
+    function updateStats() {
+      const counts = { red: 0, orange: 0, yellow: 0, blue: 0, green: 0, gray: 0 };
+      const total = Object.keys(layersById).length;
+      let marked = 0;
+      Object.values(marks).forEach(m => {
+        if (counts[m.color] !== undefined && m.color !== 'gray') {
+          counts[m.color]++;
+          marked++;
+        }
+      });
+      counts.gray = total - marked;
+      document.getElementById('stats').innerHTML =
+        `<span>Всего: <b>${total}</b></span>` +
+        Object.entries(COLORS).map(([k, v]) =>
+          `<span style="color:${v.hex}">● ${counts[k]}</span>`
+        ).join('');
+    }
+
+    function selectBuilding(id, feature, layer) {
+      const prev = selectedId;
+      selectedId = id;
+      if (prev) updateStyle(prev);
+      updateStyle(id);
+
+      const p = feature.properties || {};
+      const addr = [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
+      const levels = p['building:levels'] ? ` • Этажей: ${p['building:levels']}` : '';
+      document.getElementById('b-title').textContent = addr || `Здание (${id})`;
+
+      const mark = marks[id] || { color: 'gray', reason: '', updated_by: '' };
+      document.getElementById('b-meta').textContent =
+        (mark.updated_by ? `Отметил: ${mark.updated_by}` : 'Еще не проверялось') + levels;
+
+      // Ссылки на панорамы по центру дома
+      const c = layer.getBounds().getCenter();
+      const lat = c.lat.toFixed(6);
+      const lng = c.lng.toFixed(6);
+      document.getElementById('lnk-ypano').href = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&panorama%5Bpoint%5D=${lng}%2C${lat}&z=18`;
+      document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
+      document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+      document.getElementById('lnk-2gis').href  = `https://2gis.ru/?m=${lng}%2C${lat}%2F18`;
+
+      document.getElementById('reason').value = mark.reason || '';
+      document.getElementById('save-status').textContent = '';
+      highlightActiveColor(mark.color);
+
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+    }
+
+    function highlightActiveColor(colorKey) {
+      document.querySelectorAll('.color-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.color === colorKey);
+      });
+    }
+
+    async function saveMark(colorKey) {
+      if (!selectedId) return;
+      const payload = {
+        building_id: selectedId,
+        color: colorKey,
+        reason: document.getElementById('reason').value.trim(),
+        updated_by: userInput.value.trim() || 'Аноним',
+        updated_at: new Date().toISOString()
+      };
+      marks[selectedId] = payload;
+      updateStyle(selectedId);
+      highlightActiveColor(colorKey);
+      updateStats();
+      document.getElementById('save-status').textContent = 'Сохранение...';
+
+      const { error } = await db.from('building_marks').upsert(payload);
+      document.getElementById('save-status').textContent = error
+        ? 'Ошибка сохранения: ' + error.message
+        : 'Сохранено в общую базу';
+    }
+
+    function getFeatureId(f) {
+  if (f.id) return String(f.id);
+  if (f.properties && f.properties['@id']) return String(f.properties['@id']);
+  let c = f.geometry.coordinates;
+  while (Array.isArray(c[0])) c = c[0];
+  return 'p_' + Number(c[0]).toFixed(5) + '_' + Number(c[1]).toFixed(5);
+}
+
+async function init() {
+  const statusEl = document.getElementById('load-status');
+
+  // 1. Сначала грузим слепок домов — карта сразу заработает, даже если Supabase недоступен
+  try {
+    statusEl.textContent = 'Загрузка buildings.geojson...';
+    const res = await fetch('./buildings.geojson');
+    if (!res.ok) throw new Error(`Файл buildings.geojson не найден (HTTP ${res.status})`);
+    const geojson = await res.json();
+
+    const geoLayer = L.geoJSON(geojson, {
+      filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
+      style: f => getStyle(getFeatureId(f)),
+      onEachFeature: (feature, layer) => {
+        const id = getFeatureId(feature);
+        layersById[id] = layer;
+        layer.on('click', () => selectBuilding(id, feature, layer));
+      }
+    }).addTo(map);
+
+    if (Object.keys(layersById).length === 0) {
+      throw new Error('В buildings.geojson нет полигонов домов');
+    }
+
+    map.fitBounds(geoLayer.getBounds());
+    updateStats();
+  } catch (err) {
+    statusEl.style.color = '#f87171';
+    statusEl.textContent = 'Ошибка карты: ' + err.message;
+    console.error(err);
+    return;
+  }
+
+  // 2. Затем подтягиваем отметки из Supabase
+  try {
+    statusEl.textContent = 'Подключение к Supabase...';
+    const { data, error } = await db.from('building_marks').select('*');
+    if (error) throw error;
+
+    if (data) {
+      data.forEach(row => {
+        marks[row.building_id] = row;
+        updateStyle(row.building_id);
+      });
+    }
+    updateStats();
+    statusEl.style.color = '#4ade80';
+    statusEl.textContent = 'Готово к работе (синхронизация онлайн)';
+
+    db.channel('marks-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'building_marks' }, payload => {
+        const row = payload.new;
+        if (!row || !row.building_id) return;
+        marks[row.building_id] = row;
+        updateStyle(row.building_id);
+        updateStats();
+        if (row.building_id === selectedId) {
+          document.getElementById('reason').value = row.reason || '';
+          highlightActiveColor(row.color);
+        }
+      })
+      .subscribe();
+  } catch (err) {
+    statusEl.style.color = '#fbbf24';
+    statusEl.textContent = 'Нет связи с Supabase: ' + err.message;
+    console.error(err);
+  }
+}
+
+    init();
+  </script>
+</body>
+</html>
