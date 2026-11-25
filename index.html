@@ -40,6 +40,10 @@
     .btn-danger { background: #991b1b; }
     .btn-sm { padding: 4px 8px; font-size: 11px; }
 
+    .addr-grid {
+      display: grid; grid-template-columns: 42% 1fr; gap: 6px;
+    }
+
     /* Нижняя плавающая панель оценки поверх карты */
     #rating-dock {
       position: absolute;
@@ -206,7 +210,7 @@
       <div class="dock-colors" id="color-buttons"></div>
 
       <div class="dock-reason-row">
-        <textarea id="reason" placeholder="Причина / комментарий к оценке — Ctrl+Enter для сохранения"></textarea>
+        <textarea id="reason" maxlength="500" placeholder="Причина / комментарий к оценке (до 500 симв.) — Ctrl+Enter для сохранения"></textarea>
         <button class="btn-primary" id="save-reason">Сохранить комментарий</button>
       </div>
     </div>
@@ -250,7 +254,7 @@
     <div class="search-wrap">
       <div class="section-title">Поиск дома по адресу</div>
       <div class="row">
-        <input type="text" id="search-input" placeholder="Например: Ленина 45 или Кирова 12" autocomplete="off" />
+        <input type="text" id="search-input" placeholder="Например: Ленина 45 или Демихово Заводская 5" autocomplete="off" />
         <button id="btn-search-clear" class="btn-sm hidden">✕</button>
       </div>
       <div id="search-results" class="search-results hidden"></div>
@@ -288,8 +292,14 @@
       </div>
 
       <div>
-        <div class="section-title">Адрес для поиска (можно уточнить вручную)</div>
-        <input type="text" id="addr-override" placeholder="Улица, номер дома" />
+        <div class="between" style="margin-bottom:4px;">
+          <div class="section-title" style="margin:0;">Населённый пункт и адрес для поиска</div>
+          <span id="geo-detect-status" class="muted" style="font-size:11px;"></span>
+        </div>
+        <div class="addr-grid">
+          <input type="text" id="place-override" placeholder="Город / посёлок" />
+          <input type="text" id="addr-override" placeholder="Улица, номер дома" />
+        </div>
       </div>
 
       <div>
@@ -337,7 +347,8 @@
     // ================= НАСТРОЙКИ =================
     const SUPABASE_URL = 'https://zzjitqmbhstglzdiampr.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_ZEGMRdNI279o7FCqN0B5hw_CTVgCJ4s';
-    const CITY_NAME = 'Орехово-Зуево';
+    const GEOJSON_FILES = ['./buildings.geojson']; // можно добавлять новые файлы через запятую
+    const DEFAULT_CITY = 'Орехово-Зуево';          // резерв, если не удалось определить н.п.
     const DEFAULT_CENTER = [55.8067, 38.9618];
     // =============================================
 
@@ -356,7 +367,6 @@
     const canvasRenderer = L.canvas({ padding: 0.5 });
     const map = L.map('map', { preferCanvas: true }).setView(DEFAULT_CENTER, 13);
 
-    // Чтобы клики и скролл по нижней панели не уходили в карту
     const dockEl = document.getElementById('rating-dock');
     L.DomEvent.disableClickPropagation(dockEl);
     L.DomEvent.disableScrollPropagation(dockEl);
@@ -392,11 +402,14 @@
     const featuresById = {};
     const searchIndex = [];
     const marks = {};
+    const reverseGeoCache = {};
     const visibleColors = { gray: true, red: true, orange: true, blue: true, green: true, black: true };
 
+    let loadedBounds = null;
     let onlyDisputed = false;
     let selectedId = null;
     let selectedCoords = null;
+    let userEditedAddress = false;
     let currentPass = null;
     let currentUser = null;
     let isSaving = false;
@@ -424,6 +437,13 @@
       });
     }
 
+    function cleanPlaceName(raw) {
+      return String(raw || '')
+        .trim()
+        .replace(/^(город|деревня|пос[её]лок|рабочий пос[её]лок|дачный пос[её]лок|село|пгт|снт|г\.|д\.|п\.|с\.)\s+/i, '')
+        .trim();
+    }
+
     function getFeatureId(f) {
       if (f.id) return String(f.id);
       if (f.properties && f.properties['@id']) return String(f.properties['@id']);
@@ -432,9 +452,18 @@
       return 'p_' + Number(c[0]).toFixed(5) + '_' + Number(c[1]).toFixed(5);
     }
 
+    function getOsmPlace(feature) {
+      const p = (feature && feature.properties) || {};
+      const raw = p['addr:city'] || p['addr:town'] || p['addr:village'] || p['addr:hamlet'] || p['addr:place'] || '';
+      return cleanPlaceName(raw);
+    }
+
     function getOsmAddress(feature) {
       const p = (feature && feature.properties) || {};
-      return [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
+      if (p['addr:street']) {
+        return [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
+      }
+      return p['addr:housenumber'] ? String(p['addr:housenumber']) : '';
     }
 
     function getVotesMap(mark) {
@@ -713,9 +742,10 @@
     }
 
     // ---------- Ссылки на карты, панорамы и площадки ----------
-    function updateExternalLinks(lat, lng, addrText) {
+    function updateExternalLinks(lat, lng, placeText, addrText) {
+      const cleanPlace = cleanPlaceName(placeText);
       const cleanAddr = (addrText || '').trim();
-      const fullAddr = cleanAddr ? `${CITY_NAME}, ${cleanAddr}` : '';
+      const fullAddr = [cleanPlace, cleanAddr].filter(Boolean).join(', ');
 
       document.getElementById('lnk-ymap').href = fullAddr
         ? `https://yandex.ru/maps/?text=${encodeURIComponent(fullAddr)}&ll=${lng}%2C${lat}&z=18`
@@ -733,9 +763,13 @@
       document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
       document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
 
-      const qAddr = cleanAddr || `${lat} ${lng}`;
-      const makeGoogle = domain => `https://www.google.com/search?q=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
-      const makeYandex = domain => `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
+      const queryParts = [];
+      if (cleanPlace) queryParts.push(`"${cleanPlace}"`);
+      if (cleanAddr) queryParts.push(cleanAddr);
+      const searchTail = queryParts.length > 0 ? queryParts.join(' ') : `${lat} ${lng}`;
+
+      const makeGoogle = domain => `https://www.google.com/search?q=${encodeURIComponent(`site:${domain} ${searchTail}`)}`;
+      const makeYandex = domain => `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} ${searchTail}`)}`;
 
       document.getElementById('lnk-avito-g').href    = makeGoogle('avito.ru');
       document.getElementById('lnk-avito-y').href    = makeYandex('avito.ru');
@@ -748,11 +782,73 @@
       document.getElementById('lnk-pastvu').href     = `https://pastvu.com/?g=${lat},${lng}&z=17`;
     }
 
-    document.getElementById('addr-override').addEventListener('input', e => {
+    const placeInput = document.getElementById('place-override');
+    const addrInput = document.getElementById('addr-override');
+
+    function onManualAddrEdit() {
+      userEditedAddress = true;
+      document.getElementById('geo-detect-status').textContent = '';
       if (selectedCoords) {
-        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, e.target.value);
+        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, placeInput.value, addrInput.value);
       }
-    });
+    }
+    placeInput.addEventListener('input', onManualAddrEdit);
+    addrInput.addEventListener('input', onManualAddrEdit);
+
+    // Автоопределение населённого пункта (и адреса при его отсутствии) через OSM Nominatim
+    async function detectPlaceFromOSM(id, lat, lng, osmPlace, osmAddr) {
+      const geoStatus = document.getElementById('geo-detect-status');
+      if (osmPlace && osmAddr) {
+        geoStatus.textContent = '';
+        return;
+      }
+
+      if (reverseGeoCache[id]) {
+        applyDetectedGeo(id, reverseGeoCache[id], osmPlace, osmAddr);
+        return;
+      }
+
+      geoStatus.textContent = 'уточняем н.п...';
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&accept-language=ru`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const a = (data && data.address) || {};
+
+        // Для пригородов и деревень village/hamlet важнее названия городского округа
+        const rawPlace = a.village || a.hamlet || a.town || a.city || a.isolated_dwelling || '';
+        const detectedPlace = cleanPlaceName(rawPlace) || DEFAULT_CITY;
+        const detectedAddr = [a.road, a.house_number].filter(Boolean).join(', ');
+
+        const info = { place: detectedPlace, addr: detectedAddr };
+        reverseGeoCache[id] = info;
+        applyDetectedGeo(id, info, osmPlace, osmAddr);
+      } catch {
+        if (selectedId === id) geoStatus.textContent = '';
+      }
+    }
+
+    function applyDetectedGeo(id, info, osmPlace, osmAddr) {
+      if (selectedId !== id || userEditedAddress) return;
+      document.getElementById('geo-detect-status').textContent = '';
+
+      const finalPlace = osmPlace || info.place || DEFAULT_CITY;
+      const finalAddr = osmAddr || info.addr || '';
+
+      placeInput.value = finalPlace;
+      if (!osmAddr && finalAddr) {
+        addrInput.value = finalAddr;
+      }
+
+      const displayTitle = [finalPlace, finalAddr].filter(Boolean).join(', ') || `Здание (${id})`;
+      document.getElementById('b-title').textContent = displayTitle;
+      document.getElementById('dock-addr').textContent = displayTitle;
+
+      if (selectedCoords) {
+        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, finalPlace, finalAddr);
+      }
+    }
 
     // ---------- Карточка дома: голоса и история ----------
     function renderVotes(mark) {
@@ -865,6 +961,7 @@
 
       const prev = selectedId;
       selectedId = id;
+      userEditedAddress = false;
       if (prev && prev !== id) applyBuildingVisual(prev);
       applyBuildingVisual(id);
       forceCanvasRedraw();
@@ -873,15 +970,23 @@
         map.fitBounds(layer.getBounds(), { maxZoom: 18, paddingTopLeft: [40, 40], paddingBottomRight: [40, 170] });
       }
 
+      const osmPlace = getOsmPlace(feature);
       const osmAddr = getOsmAddress(feature);
-      const titleText = osmAddr || `Здание без адреса (${id})`;
+      const cached = reverseGeoCache[id];
+
+      const initPlace = osmPlace || (cached && cached.place) || DEFAULT_CITY;
+      const initAddr = osmAddr || (cached && cached.addr) || '';
+
+      const titleText = [initPlace, initAddr].filter(Boolean).join(', ') || `Здание без адреса (${id})`;
       document.getElementById('b-title').textContent = titleText;
       document.getElementById('dock-addr').textContent = titleText;
 
       const c = layer.getBounds().getCenter();
       selectedCoords = { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
-      document.getElementById('addr-override').value = osmAddr;
-      updateExternalLinks(selectedCoords.lat, selectedCoords.lng, osmAddr);
+
+      placeInput.value = initPlace;
+      addrInput.value = initAddr;
+      updateExternalLinks(selectedCoords.lat, selectedCoords.lng, initPlace, initAddr);
 
       document.getElementById('save-status').textContent = '';
       document.getElementById('empty-state').classList.add('hidden');
@@ -889,6 +994,7 @@
       dockEl.classList.remove('hidden');
 
       refreshSelectedCard(true);
+      detectPlaceFromOSM(id, selectedCoords.lat, selectedCoords.lng, osmPlace, osmAddr);
     }
 
     function deselectBuilding() {
@@ -980,7 +1086,7 @@
       }
     });
 
-    // ---------- Поиск по адресу ----------
+    // ---------- Поиск по адресу (локальный + по всей загруженной зоне в OSM) ----------
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
     const searchClear = document.getElementById('btn-search-clear');
@@ -1003,13 +1109,13 @@
         const warn = isBuildingDisputed(m.id) ? '<span style="color:#facc15; margin-left:auto;">⚠</span>' : '';
         return `<div class="search-item" data-id="${escapeHtml(m.id)}">
           <span class="dot" style="background:${hex}"></span>
-          <span>${escapeHtml(m.addr)}</span>
+          <span>${escapeHtml(m.label)}</span>
           ${warn}
         </div>`;
       }).join('');
 
       html += `<div class="search-item" data-nominatim="1" style="color:#93c5fd;">
-        <span>🔍 Искать «${escapeHtml(query.trim())}» на карте (OSM)</span>
+        <span>🔍 Искать «${escapeHtml(query.trim())}» в этой области (OSM)</span>
       </div>`;
 
       searchResults.innerHTML = html;
@@ -1027,9 +1133,24 @@
         nomBtn.onclick = async () => {
           nomBtn.textContent = 'Ищем координаты в OSM...';
           try {
-            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${CITY_NAME}, ${query.trim()}`)}`;
-            const res = await fetch(url);
-            const arr = await res.json();
+            const rawQ = query.trim();
+            let viewboxParam = '';
+            if (loadedBounds && loadedBounds.isValid()) {
+              const sw = loadedBounds.getSouthWest();
+              const ne = loadedBounds.getNorthEast();
+              viewboxParam = `&viewbox=${sw.lng.toFixed(5)},${ne.lat.toFixed(5)},${ne.lng.toFixed(5)},${sw.lat.toFixed(5)}`;
+            }
+
+            // Сначала ищем строго внутри загруженной области карты
+            let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru${viewboxParam}&bounded=1&q=${encodeURIComponent(rawQ)}`);
+            let arr = await res.json();
+
+            // Если не нашли — расширяем поиск с приоритетом по области
+            if (!arr || arr.length === 0) {
+              res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru${viewboxParam}&q=${encodeURIComponent(rawQ)}`);
+              arr = await res.json();
+            }
+
             if (arr && arr[0]) {
               map.setView([Number(arr[0].lat), Number(arr[0].lon)], 18);
               searchResults.classList.add('hidden');
@@ -1139,41 +1260,48 @@
       await restoreSession();
 
       try {
-        statusEl.textContent = 'Загрузка buildings.geojson...';
-        const res = await fetch('./buildings.geojson', { cache: 'no-cache' });
-        if (!res.ok) throw new Error(`buildings.geojson не найден (HTTP ${res.status})`);
-        const geojson = await res.json();
-
+        statusEl.textContent = 'Загрузка контуров домов...';
         const bounds = L.latLngBounds();
 
-        L.geoJSON(geojson, {
-          renderer: canvasRenderer,
-          filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
-          onEachFeature: (feature, layer) => {
-            const id = getFeatureId(feature);
-            layersById[id] = layer;
-            featuresById[id] = feature;
-            layer.setStyle(getStyle(id));
-            layer.on('click', () => selectBuilding(id, false));
-            buildingsGroup.addLayer(layer);
-            bounds.extend(layer.getBounds());
+        for (const fileUrl of GEOJSON_FILES) {
+          const res = await fetch(fileUrl, { cache: 'no-cache' });
+          if (!res.ok) throw new Error(`Файл ${fileUrl} не найден (HTTP ${res.status})`);
+          const geojson = await res.json();
 
-            const addr = getOsmAddress(feature);
-            if (addr) {
-              searchIndex.push({
-                id,
-                addr,
-                norm: addr.toLowerCase().replace(/ё/g, 'е')
-              });
+          L.geoJSON(geojson, {
+            renderer: canvasRenderer,
+            filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
+            onEachFeature: (feature, layer) => {
+              const id = getFeatureId(feature);
+              if (layersById[id]) return; // защита от дублей на стыках нескольких файлов
+
+              layersById[id] = layer;
+              featuresById[id] = feature;
+              layer.setStyle(getStyle(id));
+              layer.on('click', () => selectBuilding(id, false));
+              buildingsGroup.addLayer(layer);
+              bounds.extend(layer.getBounds());
+
+              const place = getOsmPlace(feature);
+              const addr = getOsmAddress(feature);
+              const label = [place, addr].filter(Boolean).join(', ');
+              if (label) {
+                searchIndex.push({
+                  id,
+                  label,
+                  norm: label.toLowerCase().replace(/ё/g, 'е')
+                });
+              }
             }
-          }
-        });
-
-        if (Object.keys(layersById).length === 0) {
-          throw new Error('В buildings.geojson нет полигонов домов');
+          });
         }
 
-        searchIndex.sort((a, b) => a.addr.localeCompare(b.addr, 'ru', { numeric: true }));
+        if (Object.keys(layersById).length === 0) {
+          throw new Error('В загруженных GeoJSON нет полигонов домов');
+        }
+
+        loadedBounds = bounds;
+        searchIndex.sort((a, b) => a.label.localeCompare(b.label, 'ru', { numeric: true }));
         map.fitBounds(bounds);
         updateStats();
       } catch (err) {
