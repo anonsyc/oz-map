@@ -10,7 +10,7 @@
     body { margin: 0; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f8fafc; }
     #map { flex: 1; height: 100%; }
     #panel {
-      width: 390px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
+      width: 400px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
       display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
     }
     h2, h3 { margin: 0; font-size: 16px; }
@@ -24,7 +24,7 @@
       background: #0f172a; color: #f8fafc; font-size: 13px;
     }
     input:focus, textarea:focus { outline: none; border-color: #3b82f6; }
-    textarea { min-height: 70px; resize: vertical; }
+    textarea { min-height: 68px; resize: vertical; }
     button {
       padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
       font-weight: 600; font-size: 12px; color: #fff; background: #334155;
@@ -52,8 +52,9 @@
       display: inline-block; border: 1px solid rgba(255,255,255,0.45);
     }
 
-    /* Фильтры всех цветов */
+    /* Фильтры */
     .filters-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .filters-grid.dimmed { opacity: 0.45; }
     .filter-chip {
       display: flex; align-items: center; justify-content: space-between; gap: 6px;
       padding: 6px 8px; border-radius: 6px; border: 1px solid #334155;
@@ -64,6 +65,26 @@
     .filter-chip-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
     .filter-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .filter-count { font-weight: 700; font-size: 11px; color: #cbd5e1; }
+
+    .disputed-filter-btn {
+      margin-top: 6px; width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border-radius: 6px; border: 2px solid #eab308;
+      background: #0f172a; color: #fde047; font-weight: 700; font-size: 12px; cursor: pointer;
+    }
+    .disputed-filter-btn.active {
+      background: #eab308; color: #0f172a;
+    }
+    .disputed-badge {
+      background: #422006; color: #fde047; padding: 2px 7px; border-radius: 999px; font-size: 11px;
+    }
+    .disputed-filter-btn.active .disputed-badge {
+      background: #0f172a; color: #fde047;
+    }
+
+    .disputed-banner {
+      background: #422006; border: 2px solid #facc15; color: #fef08a;
+      padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    }
 
     /* Кнопки выбора статуса дома */
     .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
@@ -86,16 +107,22 @@
     .link-btn.accent:hover { background: #2563eb; }
     .link-btn.full { grid-column: 1 / -1; }
 
-    /* История оценок */
-    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
-    .history-item {
+    /* Список голосов и история */
+    .votes-list, .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+    .vote-item {
       background: #0f172a; border: 1px solid #334155; border-left: 4px solid #64748b;
       border-radius: 6px; padding: 7px 9px; font-size: 12px;
     }
-    .history-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; font-size: 11px; color: #94a3b8; }
-    .history-user { color: #f8fafc; font-weight: 700; }
-    .history-status { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
-    .history-reason { color: #e2e8f0; white-space: pre-wrap; word-break: break-word; }
+    .vote-item.mine { border-color: #475569; background: #132038; }
+    .vote-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; font-size: 11px; color: #94a3b8; }
+    .vote-user { color: #f8fafc; font-weight: 700; }
+    .vote-status { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+    .vote-reason { color: #e2e8f0; white-space: pre-wrap; word-break: break-word; }
+
+    details summary {
+      cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+      color: #94a3b8; font-weight: 700; user-select: none; margin-bottom: 6px;
+    }
 
     .auth-badge { font-size: 12px; color: #4ade80; font-weight: 600; }
     .warn-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 8px; border-radius: 6px; font-size: 12px; }
@@ -160,18 +187,26 @@
         </div>
       </div>
       <div class="filters-grid" id="filters-grid"></div>
+      <button id="btn-only-disputed" class="disputed-filter-btn" title="Показать только дома, где оценки участников разошлись">
+        <span>⚠ Только спорные дома</span>
+        <span class="disputed-badge" id="cnt-disputed">0</span>
+      </button>
     </div>
 
     <hr style="border:none; border-top:1px solid #334155; margin:2px 0;" />
 
     <div id="empty-state" class="muted">
-      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск на площадках и поставить оценку.
+      Кликните по любому дому на карте или найдите его через поиск выше, чтобы открыть панорамы, поиск на площадках и поставить свою оценку.
     </div>
 
     <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
       <div>
         <h3 id="b-title">Дом</h3>
         <div class="muted" id="b-meta"></div>
+      </div>
+
+      <div id="disputed-banner" class="disputed-banner hidden">
+        ⚠ Спорный дом: участники поставили разные оценки. Смотрите все мнения ниже.
       </div>
 
       <div>
@@ -207,27 +242,32 @@
       </div>
 
       <div id="readonly-warn" class="warn-box hidden">
-        Вы в режиме просмотра. Введите выданный пароль сверху, чтобы менять статус и добавлять заметки.
+        Вы в режиме просмотра. Введите выданный пароль сверху, чтобы поставить свою оценку и комментарий.
       </div>
 
       <div>
-        <div class="section-title">Статус дома (клик сразу сохраняет)</div>
+        <div class="section-title">Ваша оценка (не перезаписывает чужие)</div>
         <div class="colors" id="color-buttons"></div>
       </div>
 
       <div>
-        <div class="section-title">Причина / комментарий к оценке</div>
+        <div class="section-title">Ваш комментарий / причина</div>
         <textarea id="reason" placeholder="Опишите, почему выбрали этот статус (кирпич, козырёк, окна, арка, нет фото...)"></textarea>
         <div class="between" style="margin-top:6px;">
-          <button class="btn-primary" id="save-reason" style="flex:1;">Сохранить заметку</button>
+          <button class="btn-primary" id="save-reason" style="flex:1;">Сохранить комментарий</button>
         </div>
         <div id="save-status" class="muted" style="margin-top:4px;"></div>
       </div>
 
       <div>
-        <div class="section-title">История оценок дома</div>
-        <div class="history-list" id="history-list"></div>
+        <div class="section-title">Текущие оценки участников (<span id="votes-count">0</span>)</div>
+        <div class="votes-list" id="votes-list"></div>
       </div>
+
+      <details>
+        <summary>История всех изменений</summary>
+        <div class="history-list" id="history-list"></div>
+      </details>
     </div>
   </div>
 
@@ -242,7 +282,7 @@
     // =============================================
 
     const COLORS = {
-      gray:   { label: 'Не проверено',    desc: 'По умолчанию',                hex: '#64748b', uiHex: '#94a3b8', border: '#334155', opacity: 0.36 },
+      gray:   { label: 'Не проверено',    desc: 'Сбросить свой голос',         hex: '#64748b', uiHex: '#94a3b8', border: '#334155', opacity: 0.36 },
       red:    { label: 'Не подходит',     desc: 'Точно не наш дом',            hex: '#dc2626', uiHex: '#f87171', border: '#7f1d1d', opacity: 0.72 },
       orange: { label: 'Слабое сходство', desc: 'Небольшие совпадения',        hex: '#ea580c', uiHex: '#fb923c', border: '#7c2d12', opacity: 0.78 },
       blue:   { label: 'Почти оно',       desc: '1–2 значимых отличия',        hex: '#2563eb', uiHex: '#60a5fa', border: '#1e3a8a', opacity: 0.80 },
@@ -289,6 +329,7 @@
     const marks = {};
     const visibleColors = { gray: true, red: true, orange: true, blue: true, green: true, black: true };
 
+    let onlyDisputed = false;
     let selectedId = null;
     let selectedCoords = null;
     let currentPass = null;
@@ -331,6 +372,38 @@
       return [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
     }
 
+    function getVotesMap(mark) {
+      if (mark && mark.votes && typeof mark.votes === 'object' && !Array.isArray(mark.votes)) {
+        return mark.votes;
+      }
+      if (mark && mark.updated_by && normalizeColor(mark.color) !== 'gray') {
+        return {
+          [mark.updated_by]: { color: mark.color, reason: mark.reason || '', at: mark.updated_at }
+        };
+      }
+      return {};
+    }
+
+    function isBuildingDisputed(id) {
+      const mark = marks[id];
+      if (!mark) return false;
+      if (typeof mark.is_disputed === 'boolean') return mark.is_disputed;
+      const votes = getVotesMap(mark);
+      const distinct = new Set(Object.values(votes).map(v => normalizeColor(v.color)).filter(c => c !== 'gray'));
+      return distinct.size >= 2;
+    }
+
+    function getMyVote(id) {
+      if (!currentUser) return null;
+      const votes = getVotesMap(marks[id]);
+      return votes[currentUser] || null;
+    }
+
+    function getBuildingColor(id) {
+      return normalizeColor(marks[id] && marks[id].color);
+    }
+
+    // ---------- Авторизация ----------
     function clearSession(reasonText = '') {
       currentPass = null;
       currentUser = null;
@@ -342,6 +415,7 @@
         msgEl.textContent = reasonText;
       }
       updateAuthUI();
+      if (selectedId) refreshSelectedCard(false);
     }
 
     function updateAuthUI() {
@@ -385,6 +459,7 @@
         document.getElementById('name-step').classList.add('hidden');
         msgEl.textContent = '';
         updateAuthUI();
+        if (selectedId) refreshSelectedCard(true);
       } else if (data.status === 'need_username') {
         document.getElementById('name-step').classList.remove('hidden');
         document.getElementById('new-username').focus();
@@ -428,6 +503,7 @@
       }
     }
 
+    // ---------- Кнопки цветов и фильтры ----------
     const btnWrap = document.getElementById('color-buttons');
     STATUS_ORDER.forEach(key => {
       const cfg = COLORS[key];
@@ -441,6 +517,8 @@
     });
 
     const filtersWrap = document.getElementById('filters-grid');
+    const disputedBtn = document.getElementById('btn-only-disputed');
+
     STATUS_ORDER.forEach(key => {
       const cfg = COLORS[key];
       const chip = document.createElement('div');
@@ -455,44 +533,66 @@
         <span class="filter-count" id="cnt-${key}">0</span>
       `;
       chip.onclick = () => {
+        onlyDisputed = false;
         visibleColors[key] = !visibleColors[key];
-        chip.classList.toggle('off', !visibleColors[key]);
+        syncFilterUI();
         refreshAllLayers();
       };
       filtersWrap.appendChild(chip);
     });
 
+    disputedBtn.onclick = () => {
+      onlyDisputed = !onlyDisputed;
+      syncFilterUI();
+      refreshAllLayers();
+    };
+
     document.getElementById('btn-show-all').onclick = () => {
+      onlyDisputed = false;
       STATUS_ORDER.forEach(k => visibleColors[k] = true);
-      syncFilterChipsUI();
+      syncFilterUI();
       refreshAllLayers();
     };
 
     document.getElementById('btn-only-candidates').onclick = () => {
+      onlyDisputed = false;
       STATUS_ORDER.forEach(k => visibleColors[k] = (k === 'green' || k === 'blue' || k === 'orange'));
-      syncFilterChipsUI();
+      syncFilterUI();
       refreshAllLayers();
     };
 
-    function syncFilterChipsUI() {
+    function syncFilterUI() {
+      disputedBtn.classList.toggle('active', onlyDisputed);
+      filtersWrap.classList.toggle('dimmed', onlyDisputed);
       document.querySelectorAll('.filter-chip').forEach(ch => {
         ch.classList.toggle('off', !visibleColors[ch.dataset.color]);
       });
     }
 
-    function getBuildingColor(id) {
-      return normalizeColor(marks[id] && marks[id].color);
-    }
-
+    // ---------- Стили и гарантированная перерисовка ----------
     function getStyle(id) {
       const colorKey = getBuildingColor(id);
       const cfg = COLORS[colorKey];
       const isSelected = id === selectedId;
+      const disputed = isBuildingDisputed(id);
+
+      if (disputed) {
+        return {
+          fillColor: cfg.hex,
+          fillOpacity: cfg.opacity,
+          color: isSelected ? '#ffffff' : '#facc15',
+          weight: isSelected ? 5 : 4.2,
+          dashArray: isSelected ? '8, 4' : null,
+          opacity: 1
+        };
+      }
+
       return {
         fillColor: cfg.hex,
         fillOpacity: cfg.opacity,
         color: isSelected ? '#ffffff' : cfg.border,
         weight: isSelected ? 3.5 : 1.2,
+        dashArray: null,
         opacity: 0.95
       };
     }
@@ -502,7 +602,8 @@
       if (!layer) return;
 
       const colorKey = getBuildingColor(id);
-      const shouldShow = visibleColors[colorKey] || id === selectedId;
+      const disputed = isBuildingDisputed(id);
+      const shouldShow = (id === selectedId) || (onlyDisputed ? disputed : visibleColors[colorKey]);
       const isOnMap = buildingsGroup.hasLayer(layer);
 
       if (shouldShow && !isOnMap) {
@@ -513,7 +614,7 @@
 
       if (shouldShow) {
         layer.setStyle(getStyle(id));
-        if (id === selectedId) layer.bringToFront();
+        if (disputed || id === selectedId) layer.bringToFront();
         if (typeof layer.redraw === 'function') layer.redraw();
       }
     }
@@ -531,20 +632,25 @@
 
     function updateStats() {
       const counts = { gray: 0, red: 0, orange: 0, blue: 0, green: 0, black: 0 };
+      let disputedCount = 0;
       const ids = Object.keys(layersById);
-      ids.forEach(id => counts[getBuildingColor(id)]++);
+      ids.forEach(id => {
+        counts[getBuildingColor(id)]++;
+        if (isBuildingDisputed(id)) disputedCount++;
+      });
       document.getElementById('total-count').textContent = ids.length;
+      document.getElementById('cnt-disputed').textContent = disputedCount;
       STATUS_ORDER.forEach(k => {
         const el = document.getElementById('cnt-' + k);
         if (el) el.textContent = counts[k];
       });
     }
 
+    // ---------- Ссылки на карты, панорамы и площадки ----------
     function updateExternalLinks(lat, lng, addrText) {
       const cleanAddr = (addrText || '').trim();
       const fullAddr = cleanAddr ? `${CITY_NAME}, ${cleanAddr}` : '';
 
-      // Карты и панорамы
       document.getElementById('lnk-ymap').href = fullAddr
         ? `https://yandex.ru/maps/?text=${encodeURIComponent(fullAddr)}&ll=${lng}%2C${lat}&z=18`
         : `https://yandex.ru/maps/?ll=${lng}%2C${lat}&pt=${lng}%2C${lat}&z=18`;
@@ -561,7 +667,6 @@
       document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
       document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
 
-      // Отдельный поиск по каждой площадке в Google и Яндексе
       const qAddr = cleanAddr || `${lat} ${lng}`;
       const makeGoogle = domain => `https://www.google.com/search?q=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
       const makeYandex = domain => `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} "${CITY_NAME}" ${qAddr}`)}`;
@@ -583,6 +688,44 @@
       }
     });
 
+    // ---------- Карточка дома: голоса и история ----------
+    function renderVotes(mark) {
+      const wrap = document.getElementById('votes-list');
+      const votesObj = getVotesMap(mark);
+      const entries = Object.entries(votesObj)
+        .map(([user, v]) => ({ user, color: normalizeColor(v.color), reason: v.reason || '', at: v.at }))
+        .filter(v => v.color !== 'gray')
+        .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+
+      document.getElementById('votes-count').textContent = entries.length;
+
+      if (entries.length === 0) {
+        wrap.innerHTML = '<div class="muted">Оценок пока нет.</div>';
+        return;
+      }
+
+      wrap.innerHTML = entries.map(item => {
+        const cfg = COLORS[item.color];
+        const isMine = currentUser && item.user === currentUser;
+        const note = item.reason
+          ? `<div class="vote-reason">${escapeHtml(item.reason)}</div>`
+          : '<div class="muted">Без комментария</div>';
+        return `
+          <div class="vote-item ${isMine ? 'mine' : ''}" style="border-left-color:${cfg.uiHex}">
+            <div class="vote-head">
+              <span class="vote-user">${escapeHtml(item.user)}${isMine ? ' (Вы)' : ''}</span>
+              <span>${escapeHtml(formatDate(item.at))}</span>
+            </div>
+            <div class="vote-status" style="color:${cfg.uiHex}">
+              <span class="dot" style="background:${cfg.hex}"></span>
+              <span>${escapeHtml(cfg.label)}</span>
+            </div>
+            ${note}
+          </div>
+        `;
+      }).join('');
+    }
+
     function renderHistory(mark) {
       const wrap = document.getElementById('history-list');
       const items = (mark && Array.isArray(mark.history) && mark.history.length > 0)
@@ -590,23 +733,24 @@
         : (mark && mark.updated_by ? [{ user: mark.updated_by, color: mark.color, reason: mark.reason, at: mark.updated_at }] : []);
 
       if (items.length === 0) {
-        wrap.innerHTML = '<div class="muted">Оценок пока нет.</div>';
+        wrap.innerHTML = '<div class="muted">История пуста.</div>';
         return;
       }
 
       wrap.innerHTML = items.map(item => {
         const cKey = normalizeColor(item.color);
         const cfg = COLORS[cKey];
-        const note = item.reason ? `<div class="history-reason">${escapeHtml(item.reason)}</div>` : '<div class="muted">Без комментария</div>';
+        const statusText = cKey === 'gray' ? 'Сбросил свой голос' : cfg.label;
+        const note = item.reason ? `<div class="vote-reason">${escapeHtml(item.reason)}</div>` : '';
         return `
-          <div class="history-item" style="border-left-color:${cfg.uiHex}">
-            <div class="history-head">
-              <span class="history-user">${escapeHtml(item.user || 'Неизвестно')}</span>
+          <div class="vote-item" style="border-left-color:${cfg.uiHex}">
+            <div class="vote-head">
+              <span class="vote-user">${escapeHtml(item.user || 'Неизвестно')}</span>
               <span>${escapeHtml(formatDate(item.at))}</span>
             </div>
-            <div class="history-status" style="color:${cfg.uiHex}">
+            <div class="vote-status" style="color:${cfg.uiHex}">
               <span class="dot" style="background:${cfg.hex}"></span>
-              <span>${escapeHtml(cfg.label)}</span>
+              <span>${escapeHtml(statusText)}</span>
             </div>
             ${note}
           </div>
@@ -618,6 +762,34 @@
       document.querySelectorAll('.color-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.color === colorKey);
       });
+    }
+
+    function refreshSelectedCard(overwriteReasonInput = false) {
+      if (!selectedId) return;
+      const feature = featuresById[selectedId];
+      const mark = marks[selectedId] || null;
+      const p = (feature && feature.properties) || {};
+      const levels = p['building:levels'] ? `Этажей: ${p['building:levels']}` : '';
+
+      const votesCount = Object.keys(getVotesMap(mark)).length;
+      const lastInfo = votesCount > 0 && mark && mark.updated_by
+        ? `Оценок: ${votesCount} • Посл.: ${mark.updated_by} (${formatDate(mark.updated_at)})`
+        : 'Еще не проверялось';
+      document.getElementById('b-meta').textContent = [lastInfo, levels].filter(Boolean).join(' • ');
+
+      document.getElementById('disputed-banner').classList.toggle('hidden', !isBuildingDisputed(selectedId));
+
+      const myVote = getMyVote(selectedId);
+      const myColor = myVote ? normalizeColor(myVote.color) : 'gray';
+      highlightActiveColor(myColor);
+
+      if (overwriteReasonInput || document.activeElement !== document.getElementById('reason')) {
+        document.getElementById('reason').value = (myVote && myVote.reason) || '';
+      }
+
+      renderVotes(mark);
+      renderHistory(mark);
+      updateAuthUI();
     }
 
     function selectBuilding(id, zoomTo = false) {
@@ -635,33 +807,22 @@
         map.fitBounds(layer.getBounds(), { maxZoom: 18, padding: [40, 40] });
       }
 
-      const p = feature.properties || {};
       const osmAddr = getOsmAddress(feature);
-      const levels = p['building:levels'] ? `Этажей: ${p['building:levels']}` : '';
       document.getElementById('b-title').textContent = osmAddr || `Здание без адреса (${id})`;
-
-      const mark = marks[id] || null;
-      const lastInfo = mark && mark.updated_by
-        ? `Последняя правка: ${mark.updated_by} (${formatDate(mark.updated_at)})`
-        : 'Еще не проверялось';
-      document.getElementById('b-meta').textContent = [lastInfo, levels].filter(Boolean).join(' • ');
 
       const c = layer.getBounds().getCenter();
       selectedCoords = { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
       document.getElementById('addr-override').value = osmAddr;
       updateExternalLinks(selectedCoords.lat, selectedCoords.lng, osmAddr);
 
-      const currentColor = getBuildingColor(id);
-      highlightActiveColor(currentColor);
-      document.getElementById('reason').value = (mark && mark.reason) || '';
       document.getElementById('save-status').textContent = '';
-      renderHistory(mark);
-
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('editor').classList.remove('hidden');
-      updateAuthUI();
+
+      refreshSelectedCard(true);
     }
 
+    // ---------- Сохранение голоса ----------
     async function saveMark(colorKey) {
       if (!selectedId) return;
       if (!currentPass || !currentUser) {
@@ -697,30 +858,33 @@
         return;
       }
 
-      updateAuthUI();
-
       if (data && data.building_id) {
         marks[data.building_id] = data;
         applyBuildingVisual(data.building_id);
         forceCanvasRedraw();
         updateStats();
-        highlightActiveColor(getBuildingColor(data.building_id));
-        renderHistory(data);
-        const p = (featuresById[data.building_id] && featuresById[data.building_id].properties) || {};
-        const levels = p['building:levels'] ? ` • Этажей: ${p['building:levels']}` : '';
-        document.getElementById('b-meta').textContent =
-          `Последняя правка: ${data.updated_by} (${formatDate(data.updated_at)})${levels}`;
+        refreshSelectedCard(true);
+      } else {
+        updateAuthUI();
       }
 
       saveStatus.className = 'ok-text';
-      saveStatus.textContent = 'Сохранено в общую базу';
+      saveStatus.textContent = colorKey === 'gray' ? 'Ваш голос сброшен' : 'Ваш голос сохранён';
     }
 
     document.getElementById('save-reason').onclick = () => {
       if (!selectedId) return;
-      saveMark(getBuildingColor(selectedId));
+      const myVote = getMyVote(selectedId);
+      if (!myVote) {
+        const saveStatus = document.getElementById('save-status');
+        saveStatus.className = 'err-text';
+        saveStatus.textContent = 'Сначала выберите статус дома выше';
+        return;
+      }
+      saveMark(normalizeColor(myVote.color));
     };
 
+    // ---------- Поиск по адресу ----------
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
     const searchClear = document.getElementById('btn-search-clear');
@@ -740,9 +904,11 @@
 
       let html = matches.map(m => {
         const hex = COLORS[getBuildingColor(m.id)].hex;
+        const warn = isBuildingDisputed(m.id) ? '<span style="color:#facc15; margin-left:auto;">⚠</span>' : '';
         return `<div class="search-item" data-id="${escapeHtml(m.id)}">
           <span class="dot" style="background:${hex}"></span>
           <span>${escapeHtml(m.addr)}</span>
+          ${warn}
         </div>`;
       }).join('');
 
@@ -797,6 +963,15 @@
       if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
     });
 
+    // ---------- Синхронизация ----------
+    function hasRowChanged(oldRow, newRow) {
+      if (!oldRow) return true;
+      return oldRow.updated_at !== newRow.updated_at
+        || oldRow.color !== newRow.color
+        || oldRow.is_disputed !== newRow.is_disputed
+        || JSON.stringify(oldRow.votes || {}) !== JSON.stringify(newRow.votes || {});
+    }
+
     async function syncMarks(showStatus = false) {
       if (syncInProgress) return;
       syncInProgress = true;
@@ -831,8 +1006,7 @@
           if (!freshMap[id]) { delete marks[id]; changedIds.add(id); }
         });
         Object.entries(freshMap).forEach(([id, row]) => {
-          const old = marks[id];
-          if (!old || old.updated_at !== row.updated_at || old.color !== row.color || old.reason !== row.reason) {
+          if (hasRowChanged(marks[id], row)) {
             marks[id] = row;
             changedIds.add(id);
           }
@@ -843,12 +1017,7 @@
           forceCanvasRedraw();
           updateStats();
           if (selectedId && changedIds.has(selectedId)) {
-            const cur = marks[selectedId];
-            highlightActiveColor(getBuildingColor(selectedId));
-            renderHistory(cur);
-            if (document.activeElement !== document.getElementById('reason')) {
-              document.getElementById('reason').value = (cur && cur.reason) || '';
-            }
+            refreshSelectedCard(false);
           }
         }
 
@@ -868,6 +1037,7 @@
       if (!document.hidden) syncMarks(false);
     });
 
+    // ---------- Запуск ----------
     async function init() {
       const statusEl = document.getElementById('load-status');
       await restoreSession();
@@ -928,11 +1098,7 @@
           forceCanvasRedraw();
           updateStats();
           if (row.building_id === selectedId) {
-            highlightActiveColor(getBuildingColor(row.building_id));
-            renderHistory(row);
-            if (document.activeElement !== document.getElementById('reason')) {
-              document.getElementById('reason').value = row.reason || '';
-            }
+            refreshSelectedCard(false);
           }
         })
         .subscribe();
