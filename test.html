@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Карта проверки домов</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #f8fafc; }
+
+    #map-wrap {
+      flex: 1; position: relative; height: 100%; min-width: 0;
+    }
+    #map { width: 100%; height: 100%; }
+
+    #panel {
+      width: 410px; padding: 14px; background: #1e293b; border-left: 1px solid #334155;
+      display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-shrink: 0;
+    }
+
+    h2, h3 { margin: 0; font-size: 16px; }
+    .row { display: flex; gap: 6px; align-items: center; }
+    .between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .muted { color: #94a3b8; font-size: 12px; }
+    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 5px; font-weight: 700; }
+    .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    input[type="text"], input[type="password"], textarea {
+      width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-size: 13px;
+    }
+    input:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+    button {
+      padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
+      font-weight: 600; font-size: 12px; color: #fff; background: #334155;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.15); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: #2563eb; }
+    .btn-danger { background: #991b1b; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    .addr-grid {
+      display: grid; grid-template-columns: 42% 1fr; gap: 6px;
+    }
+
+    /* Таблица игроков и фильтр участников слева поверх карты */
+    #leaderboard-panel {
+      position: absolute;
+      top: 128px;
+      left: 10px;
+      width: 262px;
+      max-height: calc(100vh - 300px);
+      z-index: 880;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #leaderboard-panel.collapsed {
+      width: auto;
+      padding: 6px 10px;
+    }
+    #leaderboard-panel.collapsed #lb-body { display: none; }
+    .lb-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .lb-title { font-size: 12px; font-weight: 700; color: #f8fafc; letter-spacing: 0.02em; }
+    .lb-progress-wrap {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .lb-progress-bar {
+      height: 5px; background: #1e293b; border-radius: 999px; overflow: hidden;
+    }
+    .lb-progress-fill {
+      height: 100%; background: #22c55e; width: 0%; transition: width 0.25s;
+    }
+    .lb-controls {
+      display: flex; gap: 5px; flex-wrap: wrap;
+    }
+    .lb-mode-btn {
+      flex: 1; padding: 4px 7px; font-size: 11px; background: #1e293b;
+      border: 1px solid #475569; color: #e2e8f0; border-radius: 5px;
+    }
+    .lb-mode-btn.active {
+      background: #2563eb; border-color: #60a5fa; color: #fff;
+    }
+    .lb-highlight-row {
+      display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1;
+      cursor: pointer; user-select: none; padding: 4px 6px; border-radius: 5px;
+      background: #1e293b; border: 1px solid #334155;
+    }
+    .lb-highlight-row input { margin: 0; accent-color: #22d3ee; cursor: pointer; }
+    .lb-list {
+      display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 280px;
+      padding-right: 2px;
+    }
+    .lb-row {
+      display: flex; align-items: center; gap: 6px; padding: 5px 6px;
+      border-radius: 6px; background: #1e293b; border: 1px solid #334155; font-size: 12px;
+      transition: opacity 0.15s;
+    }
+    .lb-row.mine { border-color: #22d3ee; background: #13253b; }
+    .lb-row.unchecked { opacity: 0.45; }
+    .lb-row input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: #3b82f6; flex-shrink: 0; }
+    .lb-rank {
+      font-size: 11px; font-weight: 800; color: #94a3b8; width: 20px; text-align: center; flex-shrink: 0;
+    }
+    .lb-rank.r1 { color: #facc15; }
+    .lb-rank.r2 { color: #cbd5e1; }
+    .lb-rank.r3 { color: #fb923c; }
+    .lb-name {
+      flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-weight: 600; color: #f8fafc; cursor: pointer;
+    }
+    .lb-stats {
+      text-align: right; flex-shrink: 0; line-height: 1.15;
+    }
+    .lb-pct { font-size: 12px; font-weight: 700; color: #4ade80; }
+    .lb-cnt { font-size: 10px; color: #94a3b8; }
+
+    /* Общий нижний стек по центру карты (кнопка рандома + панель оценки) */
+    #bottom-stack {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(940px, calc(100% - 28px));
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    /* Плавающая панель перехода к случайному непроверенному дому */
+    #random-bar {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #475569;
+      border-radius: 999px;
+      padding: 5px 7px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .rnd-jump-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      background: #2563eb; color: #fff; font-size: 12px; font-weight: 700;
+    }
+    .rnd-count-badge {
+      background: rgba(15, 23, 42, 0.45);
+      padding: 1px 7px; border-radius: 999px; font-size: 11px; color: #dbeafe;
+    }
+    .rnd-switch {
+      display: inline-flex; background: #1e293b; border: 1px solid #334155;
+      border-radius: 999px; padding: 2px; gap: 2px;
+    }
+    .rnd-mode-btn {
+      padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: transparent; color: #94a3b8;
+    }
+    .rnd-mode-btn.active {
+      background: #334155; color: #f8fafc;
+    }
+
+    /* Нижняя плавающая панель оценки поверх карты */
+    #rating-dock {
+      pointer-events: auto;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dock-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .dock-title-wrap {
+      display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap;
+    }
+    .dock-addr {
+      font-size: 13px; font-weight: 700; color: #f8fafc;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px;
+    }
+    .dock-colors {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 6px;
+    }
+    @media (max-width: 1220px) {
+      .dock-colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .color-btn {
+      padding: 7px 8px; border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-align: left;
+      display: flex; flex-direction: column; gap: 2px; opacity: 0.92; min-width: 0;
+    }
+    .color-btn .c-title {
+      font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .color-btn .c-desc {
+      font-weight: 400; font-size: 10px; opacity: 0.9; line-height: 1.15;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .color-btn.active {
+      border-color: #ffffff; opacity: 1; box-shadow: 0 0 0 2px rgba(255,255,255,0.32);
+    }
+
+    .dock-reason-row {
+      display: flex; gap: 8px; align-items: stretch;
+    }
+    #reason {
+      flex: 1; min-height: 38px; height: 38px; max-height: 110px;
+      resize: vertical; padding: 8px 10px; line-height: 1.3;
+    }
+    #save-reason {
+      white-space: nowrap; padding: 0 14px; font-size: 12px;
+    }
+
+    /* Поиск по адресу */
+    .search-wrap { position: relative; }
+    .search-results {
+      position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 1000;
+      background: #0f172a; border: 1px solid #475569; border-radius: 6px;
+      max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.45);
+    }
+    .search-item {
+      padding: 7px 10px; font-size: 13px; cursor: pointer; display: flex;
+      align-items: center; gap: 8px; border-bottom: 1px solid #1e293b;
+    }
+    .search-item:hover { background: #1e293b; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      display: inline-block; border: 1px solid rgba(255,255,255,0.45);
+    }
+
+    /* Фильтры и прыжки по цветам */
+    .filters-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .filters-grid.dimmed { opacity: 0.45; }
+    .filter-chip {
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+      padding: 5px 6px; border-radius: 6px; border: 1px solid #334155;
+      background: #0f172a; cursor: pointer; font-size: 11.5px; user-select: none;
+      transition: opacity 0.15s;
+    }
+    .filter-chip.off { opacity: 0.35; }
+    .filter-chip.off .filter-chip-name { text-decoration: line-through; }
+    .filter-chip-left { display: flex; align-items: center; gap: 5px; overflow: hidden; min-width: 0; }
+    .filter-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .filter-chip-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+    .filter-count { font-weight: 700; font-size: 11px; color: #cbd5e1; }
+    .jump-mini-btn {
+      padding: 2px 5px; font-size: 11px; line-height: 1; border-radius: 4px;
+      background: #334155; color: #f8fafc; border: 1px solid #475569;
+    }
+    .jump-mini-btn:hover:not(:disabled) { background: #2563eb; border-color: #60a5fa; }
+
+    .disputed-row {
+      margin-top: 6px; display: flex; gap: 6px; align-items: stretch;
+    }
+    .disputed-filter-btn {
+      flex: 1; display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border-radius: 6px; border: 2px solid #eab308;
+      background: #0f172a; color: #fde047; font-weight: 700; font-size: 12px; cursor: pointer;
+    }
+    .disputed-filter-btn.active { background: #eab308; color: #0f172a; }
+    .disputed-badge {
+      background: #422006; color: #fde047; padding: 2px 7px; border-radius: 999px; font-size: 11px;
+    }
+    .disputed-filter-btn.active .disputed-badge { background: #0f172a; color: #fde047; }
+    .disputed-jump-btn {
+      padding: 0 11px; border-radius: 6px; border: 2px solid #eab308;
+      background: #0f172a; color: #fde047; font-size: 13px; font-weight: 700;
+    }
+    .disputed-jump-btn:hover:not(:disabled) { background: #eab308; color: #0f172a; }
+
+    /* Навигатор прыжков по выбранному цвету */
+    .jump-bar {
+      margin-top: 6px; background: #0f172a; border: 1px solid #3b82f6;
+      border-radius: 6px; padding: 6px 8px; display: flex; align-items: center;
+      justify-content: space-between; gap: 6px; font-size: 12px;
+    }
+    .jump-bar-info {
+      display: flex; align-items: center; gap: 6px; min-width: 0;
+    }
+    .jump-bar-label {
+      font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .jump-bar-pos {
+      color: #93c5fd; font-weight: 700; white-space: nowrap; font-size: 11px;
+    }
+    .jump-bar-btns { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .disputed-banner {
+      background: #422006; border: 2px solid #facc15; color: #fef08a;
+      padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    }
+
+    /* Ссылки на карты и поиск */
+    .links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .link-btn {
+      display: block; text-align: center; padding: 7px 6px; border-radius: 6px;
+      background: #334155; color: #e2e8f0; text-decoration: none; font-size: 12px; font-weight: 500;
+    }
+    .link-btn:hover { background: #475569; }
+    .link-btn.accent { background: #1d4ed8; }
+    .link-btn.accent:hover { background: #2563eb; }
+    .link-btn.full { grid-column: 1 / -1; }
+
+    /* Список голосов и история */
+    .votes-list, .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+    .vote-item {
+      background: #0f172a; border: 1px solid #334155; border-left: 4px solid #64748b;
+      border-radius: 6px; padding: 7px 9px; font-size: 12px;
+    }
+    .vote-item.mine { border-color: #475569; background: #132038; }
+    .vote-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; font-size: 11px; color: #94a3b8; }
+    .vote-user { color: #f8fafc; font-weight: 700; }
+    .vote-status { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+    .vote-reason { color: #e2e8f0; white-space: pre-wrap; word-break: break-word; }
+
+    details summary {
+      cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+      color: #94a3b8; font-weight: 700; user-select: none; margin-bottom: 6px;
+    }
+
+    .auth-badge { font-size: 12px; color: #4ade80; font-weight: 600; }
+    .warn-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 6px 9px; border-radius: 6px; font-size: 12px; }
+    .err-text { color: #f87171; font-size: 12px; }
+    .ok-text { color: #4ade80; font-size: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <!-- Таблица игроков + фильтр участников слева на карте -->
+    <div id="leaderboard-panel">
+      <div class="lb-head">
+        <span class="lb-title">🏆 Игроки и прогресс</span>
+        <button id="btn-lb-toggle" class="btn-sm" title="Свернуть / развернуть">—</button>
+      </div>
+
+      <div id="lb-body" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="lb-progress-wrap">
+          <div class="between" style="font-size:11px;">
+            <span class="muted">Проверено командой:</span>
+            <span id="lb-team-progress" style="font-weight:700; color:#f8fafc;">0 / 0 (0%)</span>
+          </div>
+          <div class="lb-progress-bar"><div id="lb-progress-fill" class="lb-progress-fill"></div></div>
+        </div>
+
+        <div class="lb-controls">
+          <button id="btn-lb-all" class="lb-mode-btn active" title="Показывать оценки всех игроков">Все игроки</button>
+          <button id="btn-lb-mine" class="lb-mode-btn hidden" title="Показать только дома, которые закрасили вы">Только мои</button>
+        </div>
+
+        <label id="lb-highlight-wrap" class="lb-highlight-row hidden" title="Ваши дома обводятся голубым, а чужие (без вашего голоса) приглушаются">
+          <input type="checkbox" id="chk-highlight-mine" />
+          <span>Выделить мои / приглушить чужие</span>
+        </label>
+
+        <div class="muted" style="font-size:10px; line-height:1.2;">
+          Галочки управляют тем, чьи покрасы отображаются на карте:
+        </div>
+
+        <div id="lb-list" class="lb-list">
+          <div class="muted">Пока нет оценок...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Нижний стек по центру: кнопка случайного дома + блок оценки -->
+    <div id="bottom-stack">
+      <div id="random-bar">
+        <button id="btn-random-unmarked" class="rnd-jump-btn" title="Перейти к случайному непроверенному дому">
+          <span>🎲 Случайный дом</span>
+          <span id="rnd-count" class="rnd-count-badge">0</span>
+        </button>
+        <div class="rnd-switch" role="group" aria-label="Режим случайного перехода">
+          <button id="btn-rnd-all" class="rnd-mode-btn active" title="Выбирать среди домов, которые ещё никто не оценивал">Никем не проверен</button>
+          <button id="btn-rnd-mine" class="rnd-mode-btn" title="Выбирать среди домов, где ещё нет вашей оценки (требуется вход)">Без моей оценки</button>
+        </div>
+      </div>
+
+      <div id="rating-dock" class="hidden">
+        <div class="dock-header">
+          <div class="dock-title-wrap">
+            <span class="dock-addr" id="dock-addr">Дом</span>
+            <span class="section-title" style="margin:0;">Ваша оценка (не перезаписывает чужие)</span>
+            <span id="save-status" class="muted"></span>
+          </div>
+          <button id="btn-close-dock" class="btn-sm" title="Снять выделение (Esc)">✕</button>
+        </div>
+
+        <div id="readonly-warn" class="warn-box hidden">
+          Режим просмотра — введите выданный пароль в правой панели, чтобы оценивать дома.
+        </div>
+
+        <div class="dock-colors" id="color-buttons"></div>
+
+        <div class="dock-reason-row">
+          <textarea id="reason" maxlength="500" placeholder="Причина / комментарий к оценке (до 500 симв.) — Ctrl+Enter для сохранения"></textarea>
+          <button class="btn-primary" id="save-reason">Сохранить комментарий</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="between">
+      <div>
+        <h2>Карта проверки домов</h2>
+        <div class="muted" id="load-status">Загрузка...</div>
+      </div>
+      <button id="btn-sync" class="btn-sm" title="Обновить данные с сервера">↻ Обновить</button>
+    </div>
+
+    <div class="card" id="auth-box">
+      <div id="auth-logged-out">
+        <div class="section-title">Доступ к редактированию</div>
+        <div class="row">
+          <input type="password" id="pass-input" placeholder="Введите выданный пароль" autocomplete="off" />
+          <button id="btn-login" class="btn-primary">Войти</button>
+        </div>
+        <div id="name-step" class="hidden" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+          <div class="muted">Первый вход по паролю — задайте уникальное имя (вводится один раз):</div>
+          <div class="row">
+            <input type="text" id="new-username" placeholder="Уникальное имя (2–30 симв.)" maxlength="30" />
+            <button id="btn-bind-name" class="btn-primary">Сохранить</button>
+          </div>
+        </div>
+        <div id="auth-msg" class="err-text" style="margin-top:4px;"></div>
+      </div>
+
+      <div id="auth-logged-in" class="between hidden">
+        <div>
+          <div class="muted">Режим редактирования</div>
+          <div class="auth-badge" id="active-user-label"></div>
+        </div>
+        <button id="btn-logout" class="btn-sm btn-danger">Выйти</button>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="section-title">Поиск дома по адресу</div>
+      <div class="row">
+        <input type="text" id="search-input" placeholder="Например: Ленина 45 или Демихово Заводская 5" autocomplete="off" />
+        <button id="btn-search-clear" class="btn-sm hidden">✕</button>
+      </div>
+      <div id="search-results" class="search-results hidden"></div>
+    </div>
+
+    <div>
+      <div class="between" style="margin-bottom:5px;">
+        <div class="section-title" style="margin:0;">Фильтр и переход по цветам (<span id="total-count">0</span>)</div>
+        <div class="row">
+          <button id="btn-show-all" class="btn-sm">Все</button>
+          <button id="btn-only-candidates" class="btn-sm">Кандидаты</button>
+        </div>
+      </div>
+      <div class="filters-grid" id="filters-grid"></div>
+
+      <div class="disputed-row">
+        <button id="btn-only-disputed" class="disputed-filter-btn" title="Показать только дома, где оценки участников разошлись">
+          <span>⚠ Только спорные дома</span>
+          <span class="disputed-badge" id="cnt-disputed">0</span>
+        </button>
+        <button id="btn-jump-disputed" class="disputed-jump-btn" title="Прыгнуть к следующему спорному дому">➜</button>
+      </div>
+
+      <!-- Мини-навигатор прыжков -->
+      <div id="jump-bar" class="jump-bar hidden">
+        <div class="jump-bar-info">
+          <span id="jump-dot" class="dot"></span>
+          <span id="jump-label" class="jump-bar-label"></span>
+          <span id="jump-pos" class="jump-bar-pos"></span>
+        </div>
+        <div class="jump-bar-btns">
+          <button id="btn-jump-prev" class="btn-sm" title="Предыдущий дом">◀</button>
+          <button id="btn-jump-next" class="btn-sm btn-primary" title="Следующий дом">▶</button>
+          <button id="btn-jump-close" class="btn-sm" title="Закрыть навигатор">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <hr style="border:none; border-top:1px solid #334155; margin:2px 0;" />
+
+    <div id="empty-state" class="muted">
+      Кликните по любому дому на карте, найдите его через поиск, нажмите «🎲 Случайный дом» внизу или «➜» на нужном цвете выше.
+    </div>
+
+    <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <h3 id="b-title">Дом</h3>
+        <div class="muted" id="b-meta"></div>
+      </div>
+
+      <div id="disputed-banner" class="disputed-banner hidden">
+        ⚠ Спорный дом: участники поставили разные оценки. Смотрите все мнения ниже.
+      </div>
+
+      <div>
+        <div class="between" style="margin-bottom:4px;">
+          <div class="section-title" style="margin:0;">Населённый пункт и адрес для поиска</div>
+          <span id="geo-detect-status" class="muted" style="font-size:11px;"></span>
+        </div>
+        <div class="addr-grid">
+          <input type="text" id="place-override" placeholder="Город / посёлок" />
+          <input type="text" id="addr-override" placeholder="Улица, номер дома" />
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Карты и панорамы</div>
+        <div class="links">
+          <a id="lnk-ymap" class="link-btn accent" target="_blank">Я.Карты (дом)</a>
+          <a id="lnk-2gis" class="link-btn accent" target="_blank">2ГИС (дом и входы)</a>
+          <a id="lnk-ypano" class="link-btn" target="_blank">Яндекс Панорамы</a>
+          <a id="lnk-ymrc" class="link-btn" target="_blank">Яндекс Зеркала</a>
+          <a id="lnk-gmap" class="link-btn" target="_blank">Google Карты (дом)</a>
+          <a id="lnk-gsv" class="link-btn" target="_blank">Google StreetView</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Поиск дома на площадках (Google / Яндекс)</div>
+        <div class="links">
+          <a id="lnk-avito-g" class="link-btn" target="_blank">Авито (Google)</a>
+          <a id="lnk-avito-y" class="link-btn" target="_blank">Авито (Яндекс)</a>
+          <a id="lnk-cian-g" class="link-btn" target="_blank">Циан (Google)</a>
+          <a id="lnk-cian-y" class="link-btn" target="_blank">Циан (Яндекс)</a>
+          <a id="lnk-yrealty-g" class="link-btn" target="_blank">Я.Недвиж. (Google)</a>
+          <a id="lnk-yrealty-y" class="link-btn" target="_blank">Я.Недвиж. (Яндекс)</a>
+          <a id="lnk-domclick-g" class="link-btn" target="_blank">Домклик (Google)</a>
+          <a id="lnk-domclick-y" class="link-btn" target="_blank">Домклик (Яндекс)</a>
+          <a id="lnk-pastvu" class="link-btn full" target="_blank">PastVu (архивные фото)</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Текущие оценки участников (<span id="votes-count">0</span>)</div>
+        <div class="votes-list" id="votes-list"></div>
+      </div>
+
+      <details>
+        <summary>История всех изменений</summary>
+        <div class="history-list" id="history-list"></div>
+      </details>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ================= НАСТРОЙКИ =================
+    const SUPABASE_URL = 'https://zzjitqmbhstglzdiampr.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_ZEGMRdNI279o7FCqN0B5hw_CTVgCJ4s';
+    const GEOJSON_FILES = ['./buildings.geojson'];
+    const DEFAULT_CITY = 'Орехово-Зуево';
+    const DEFAULT_CENTER = [55.8067, 38.9618];
+    // =============================================
+
+    const COLORS = {
+      gray:   { label: 'Не проверено',    desc: 'Сбросить свой голос',         hex: '#64748b', uiHex: '#94a3b8', border: '#334155', opacity: 0.36 },
+      red:    { label: 'Не подходит',     desc: 'Точно не наш дом',            hex: '#dc2626', uiHex: '#f87171', border: '#7f1d1d', opacity: 0.72 },
+      orange: { label: 'Слабое сходство', desc: 'Небольшие совпадения',        hex: '#ea580c', uiHex: '#fb923c', border: '#7c2d12', opacity: 0.78 },
+      blue:   { label: 'Почти оно',       desc: '1–2 значимых отличия',        hex: '#2563eb', uiHex: '#60a5fa', border: '#1e3a8a', opacity: 0.80 },
+      green:  { label: 'Кандидат',        desc: 'Очень похоже / без отличий',  hex: '#16a34a', uiHex: '#4ade80', border: '#052e16', opacity: 0.85 },
+      black:  { label: 'Нет данных',      desc: 'Не проверить ни одним путем', hex: '#111827', uiHex: '#e2e8f0', border: '#000000', opacity: 0.85 },
+    };
+
+    const STATUS_ORDER = ['red', 'orange', 'blue', 'green', 'black', 'gray'];
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const canvasRenderer = L.canvas({ padding: 0.5 });
+    const map = L.map('map', { preferCanvas: true }).setView(DEFAULT_CENTER, 13);
+
+    const dockEl = document.getElementById('rating-dock');
+    const randomBarEl = document.getElementById('random-bar');
+    const lbEl = document.getElementById('leaderboard-panel');
+    L.DomEvent.disableClickPropagation(dockEl);
+    L.DomEvent.disableScrollPropagation(dockEl);
+    L.DomEvent.disableClickPropagation(randomBarEl);
+    L.DomEvent.disableScrollPropagation(randomBarEl);
+    L.DomEvent.disableClickPropagation(lbEl);
+    L.DomEvent.disableScrollPropagation(lbEl);
+
+    const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxNativeZoom: 19,
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap'
+    });
+
+    const esriSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 18,
+      maxZoom: 20,
+      attribution: '&copy; Esri'
+    });
+
+    const esriMapLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 18,
+      maxZoom: 20,
+      attribution: '&copy; Esri'
+    });
+
+    osmLayer.addTo(map);
+    L.control.layers({
+      'Карта (OSM)': osmLayer,
+      'Спутник': esriSatLayer,
+      'Резерв (Esri)': esriMapLayer
+    }, null, { position: 'topleft' }).addTo(map);
+
+    const buildingsGroup = L.layerGroup().addTo(map);
+
+    const layersById = {};
+    const featuresById = {};
+    const searchIndex = [];
+    const marks = {};
+    const reverseGeoCache = {};
+    const visibleColors = { gray: true, red: true, orange: true, blue: true, green: true, black: true };
+
+    // Состояние фильтра игроков и подсветки своих домов
+    const hiddenPlayers = new Set();
+    let onlyMineMode = false;
+    let highlightMineMode = false;
+
+    // Состояние кнопки случайного дома ('all' — никем, 'mine' — без моей оценки)
+    let randomMode = 'all';
+
+    // Состояние прыжков по цветам
+    let jumpMode = null;
+    let jumpIndex = 0;
+
+    let loadedBounds = null;
+    let onlyDisputed = false;
+    let selectedId = null;
+    let selectedCoords = null;
+    let userEditedAddress = false;
+    let currentPass = null;
+    let currentUser = null;
+    let isSaving = false;
+    let syncInProgress = false;
+
+    function normalizeColor(c) {
+      if (c === 'yellow') return 'orange';
+      if (c === 'purple') return 'black';
+      return COLORS[c] ? c : 'gray';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function cleanPlaceName(raw) {
+      return String(raw || '')
+        .trim()
+        .replace(/^(город|деревня|пос[её]лок|рабочий пос[её]лок|дачный пос[её]лок|село|пгт|снт|г\.|д\.|п\.|с\.)\s+/i, '')
+        .trim();
+    }
+
+    function getFeatureId(f) {
+      if (f.id) return String(f.id);
+      if (f.properties && f.properties['@id']) return String(f.properties['@id']);
+      let c = f.geometry.coordinates;
+      while (Array.isArray(c[0])) c = c[0];
+      return 'p_' + Number(c[0]).toFixed(5) + '_' + Number(c[1]).toFixed(5);
+    }
+
+    function getOsmPlace(feature) {
+      const p = (feature && feature.properties) || {};
+      const raw = p['addr:city'] || p['addr:town'] || p['addr:village'] || p['addr:hamlet'] || p['addr:place'] || '';
+      return cleanPlaceName(raw);
+    }
+
+    function getOsmAddress(feature) {
+      const p = (feature && feature.properties) || {};
+      if (p['addr:street']) {
+        return [p['addr:street'], p['addr:housenumber']].filter(Boolean).join(', ');
+      }
+      return p['addr:housenumber'] ? String(p['addr:housenumber']) : '';
+    }
+
+    function getVotesMap(mark) {
+      if (mark && mark.votes && typeof mark.votes === 'object' && !Array.isArray(mark.votes)) {
+        const clean = {};
+        Object.entries(mark.votes).forEach(([u, v]) => {
+          if (v && normalizeColor(v.color) !== 'gray') clean[u] = v;
+        });
+        return clean;
+      }
+      if (mark && mark.updated_by && normalizeColor(mark.color) !== 'gray') {
+        return {
+          [mark.updated_by]: { color: mark.color, reason: mark.reason || '', at: mark.updated_at }
+        };
+      }
+      return {};
+    }
+
+    function isPlayerFilterActive() {
+      return (onlyMineMode && Boolean(currentUser)) || hiddenPlayers.size > 0;
+    }
+
+    function getEffectiveVotesMap(mark) {
+      const raw = getVotesMap(mark);
+      if (onlyMineMode && currentUser) {
+        return raw[currentUser] ? { [currentUser]: raw[currentUser] } : {};
+      }
+      if (hiddenPlayers.size === 0) return raw;
+      const filtered = {};
+      Object.entries(raw).forEach(([u, v]) => {
+        if (!hiddenPlayers.has(u)) filtered[u] = v;
+      });
+      return filtered;
+    }
+
+    function isBuildingDisputed(id) {
+      const mark = marks[id];
+      if (!mark) return false;
+      if (!isPlayerFilterActive() && typeof mark.is_disputed === 'boolean') {
+        return mark.is_disputed;
+      }
+      const votes = getEffectiveVotesMap(mark);
+      const distinct = new Set(Object.values(votes).map(v => normalizeColor(v.color)).filter(c => c !== 'gray'));
+      return distinct.size >= 2;
+    }
+
+    function getMyVote(id) {
+      if (!currentUser) return null;
+      const votes = getVotesMap(marks[id]);
+      return votes[currentUser] || null;
+    }
+
+    function getBuildingColor(id) {
+      const mark = marks[id];
+      if (!mark) return 'gray';
+      if (!isPlayerFilterActive()) {
+        return normalizeColor(mark.color);
+      }
+      const votes = getEffectiveVotesMap(mark);
+      const entries = Object.values(votes);
+      if (entries.length === 0) return 'gray';
+      let latest = entries[0];
+      let latestTs = new Date(latest.at || 0).getTime();
+      for (let i = 1; i < entries.length; i++) {
+        const ts = new Date(entries[i].at || 0).getTime();
+        if (ts >= latestTs) {
+          latest = entries[i];
+          latestTs = ts;
+        }
+      }
+      return normalizeColor(latest.color);
+    }
+
+    // ---------- Кнопка случайного непроверенного дома ----------
+    function getRandomCandidates() {
+      const ids = Object.keys(layersById);
+      if (randomMode === 'mine' && currentUser) {
+        return ids.filter(id => !getMyVote(id));
+      }
+      return ids.filter(id => Object.keys(getVotesMap(marks[id])).length === 0);
+    }
+
+    function updateRandomBarUI() {
+      const loggedIn = Boolean(currentPass && currentUser);
+      if (!loggedIn && randomMode === 'mine') {
+        randomMode = 'all';
+      }
+
+      const btnAll = document.getElementById('btn-rnd-all');
+      const btnMine = document.getElementById('btn-rnd-mine');
+      const btnJump = document.getElementById('btn-random-unmarked');
+
+      btnMine.disabled = !loggedIn;
+      btnAll.classList.toggle('active', randomMode === 'all');
+      btnMine.classList.toggle('active', randomMode === 'mine');
+
+      const candidates = getRandomCandidates();
+      document.getElementById('rnd-count').textContent = candidates.length;
+      btnJump.disabled = candidates.length === 0;
+    }
+
+    document.getElementById('btn-rnd-all').onclick = () => {
+      randomMode = 'all';
+      updateRandomBarUI();
+    };
+
+    document.getElementById('btn-rnd-mine').onclick = () => {
+      if (!currentUser) return;
+      randomMode = 'mine';
+      updateRandomBarUI();
+    };
+
+    document.getElementById('btn-random-unmarked').onclick = () => {
+      let pool = getRandomCandidates();
+      if (pool.length === 0) return;
+
+      if (pool.length > 1 && selectedId) {
+        const filtered = pool.filter(id => id !== selectedId);
+        if (filtered.length > 0) pool = filtered;
+      }
+
+      const pickedId = pool[Math.floor(Math.random() * pool.length)];
+      selectBuilding(pickedId, true);
+    };
+
+    // ---------- Авторизация ----------
+    function clearSession(reasonText = '') {
+      currentPass = null;
+      currentUser = null;
+      onlyMineMode = false;
+      highlightMineMode = false;
+      randomMode = 'all';
+      document.getElementById('chk-highlight-mine').checked = false;
+      sessionStorage.removeItem('oz_map_pass');
+      sessionStorage.removeItem('oz_map_user');
+      if (reasonText) {
+        const msgEl = document.getElementById('auth-msg');
+        msgEl.className = 'err-text';
+        msgEl.textContent = reasonText;
+      }
+      updateAuthUI();
+      updateAllViews();
+      if (selectedId) refreshSelectedCard(false);
+    }
+
+    function updateAuthUI() {
+      const loggedIn = Boolean(currentPass && currentUser);
+      document.getElementById('auth-logged-out').classList.toggle('hidden', loggedIn);
+      document.getElementById('auth-logged-in').classList.toggle('hidden', !loggedIn);
+      document.getElementById('readonly-warn').classList.toggle('hidden', loggedIn);
+      document.getElementById('btn-lb-mine').classList.toggle('hidden', !loggedIn);
+      document.getElementById('lb-highlight-wrap').classList.toggle('hidden', !loggedIn);
+
+      if (loggedIn) {
+        document.getElementById('active-user-label').textContent = currentUser;
+      }
+
+      document.querySelectorAll('.color-btn').forEach(b => b.disabled = !loggedIn || isSaving);
+      document.getElementById('reason').disabled = !loggedIn;
+      document.getElementById('save-reason').disabled = !loggedIn || isSaving;
+      updateRandomBarUI();
+    }
+
+    async function doAuth(pass, username = null) {
+      const msgEl = document.getElementById('auth-msg');
+      msgEl.textContent = 'Проверка...';
+      msgEl.className = 'muted';
+
+      const { data, error } = await db.rpc('auth_with_pass', {
+        p_pass: pass,
+        p_username: username
+      });
+
+      if (error) {
+        msgEl.className = 'err-text';
+        msgEl.textContent = 'Ошибка сервера: ' + error.message;
+        return;
+      }
+
+      if (data.status === 'ok') {
+        currentPass = pass.trim();
+        currentUser = data.username;
+        sessionStorage.setItem('oz_map_pass', currentPass);
+        sessionStorage.setItem('oz_map_user', currentUser);
+        document.getElementById('pass-input').value = '';
+        document.getElementById('new-username').value = '';
+        document.getElementById('name-step').classList.add('hidden');
+        msgEl.textContent = '';
+        updateAuthUI();
+        updateAllViews();
+        if (selectedId) refreshSelectedCard(true);
+      } else if (data.status === 'need_username') {
+        document.getElementById('name-step').classList.remove('hidden');
+        document.getElementById('new-username').focus();
+        msgEl.className = 'muted';
+        msgEl.textContent = data.message;
+      } else {
+        msgEl.className = 'err-text';
+        msgEl.textContent = data.message || 'Ошибка входа';
+      }
+    }
+
+    document.getElementById('btn-login').onclick = () => {
+      const pass = document.getElementById('pass-input').value.trim();
+      if (!pass) return;
+      doAuth(pass, null);
+    };
+    document.getElementById('pass-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-login').click();
+    });
+    document.getElementById('btn-bind-name').onclick = () => {
+      const pass = document.getElementById('pass-input').value.trim();
+      const name = document.getElementById('new-username').value.trim();
+      if (!pass || !name) return;
+      doAuth(pass, name);
+    };
+    document.getElementById('new-username').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-bind-name').click();
+    });
+    document.getElementById('btn-logout').onclick = () => clearSession('');
+
+    async function restoreSession() {
+      const savedPass = sessionStorage.getItem('oz_map_pass');
+      if (!savedPass) { updateAuthUI(); return; }
+      const { data, error } = await db.rpc('auth_with_pass', { p_pass: savedPass, p_username: null });
+      if (!error && data && data.status === 'ok') {
+        currentPass = savedPass;
+        currentUser = data.username;
+        updateAuthUI();
+      } else {
+        clearSession(data && data.status === 'banned' ? data.message : '');
+      }
+    }
+
+    // ---------- Таблица игроков и фильтр участников ----------
+    document.getElementById('btn-lb-toggle').onclick = () => {
+      const collapsed = lbEl.classList.toggle('collapsed');
+      document.getElementById('btn-lb-toggle').textContent = collapsed ? '+' : '—';
+    };
+
+    document.getElementById('btn-lb-all').onclick = () => {
+      onlyMineMode = false;
+      hiddenPlayers.clear();
+      updateAllViews();
+    };
+
+    document.getElementById('btn-lb-mine').onclick = () => {
+      if (!currentUser) return;
+      onlyMineMode = !onlyMineMode;
+      if (onlyMineMode) hiddenPlayers.clear();
+      updateAllViews();
+    };
+
+    document.getElementById('chk-highlight-mine').onchange = e => {
+      highlightMineMode = e.target.checked;
+      refreshAllLayers();
+    };
+
+    function renderLeaderboard() {
+      const ids = Object.keys(layersById);
+      const total = ids.length;
+      const countsByUser = {};
+      let teamChecked = 0;
+
+      ids.forEach(id => {
+        const votes = getVotesMap(marks[id]);
+        const users = Object.keys(votes);
+        if (users.length > 0) teamChecked++;
+        users.forEach(u => {
+          countsByUser[u] = (countsByUser[u] || 0) + 1;
+        });
+      });
+
+      if (currentUser && countsByUser[currentUser] === undefined) {
+        countsByUser[currentUser] = 0;
+      }
+
+      const teamPct = total > 0 ? ((teamChecked / total) * 100).toFixed(1) : '0.0';
+      document.getElementById('lb-team-progress').textContent = `${teamChecked} / ${total} (${teamPct}%)`;
+      document.getElementById('lb-progress-fill').style.width = `${total > 0 ? (teamChecked / total) * 100 : 0}%`;
+
+      const allActive = !onlyMineMode && hiddenPlayers.size === 0;
+      document.getElementById('btn-lb-all').classList.toggle('active', allActive);
+      document.getElementById('btn-lb-mine').classList.toggle('active', onlyMineMode);
+
+      const sorted = Object.entries(countsByUser)
+        .map(([user, count]) => ({ user, count }))
+        .sort((a, b) => b.count - a.count || a.user.localeCompare(b.user, 'ru'));
+
+      const listEl = document.getElementById('lb-list');
+      if (sorted.length === 0) {
+        listEl.innerHTML = '<div class="muted">Пока нет оценок...</div>';
+        return;
+      }
+
+      listEl.innerHTML = sorted.map((item, idx) => {
+        const rank = idx + 1;
+        const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+        const isMine = currentUser && item.user === currentUser;
+        const isChecked = onlyMineMode ? isMine : !hiddenPlayers.has(item.user);
+        const rankClass = rank <= 3 ? `r${rank}` : '';
+
+        return `
+          <div class="lb-row ${isMine ? 'mine' : ''} ${isChecked ? '' : 'unchecked'}">
+            <input type="checkbox" class="lb-chk" data-user="${escapeHtml(item.user)}" ${isChecked ? 'checked' : ''} title="Показывать/скрывать покрасы игрока" />
+            <span class="lb-rank ${rankClass}">#${rank}</span>
+            <span class="lb-name" data-solo="${escapeHtml(item.user)}" title="${escapeHtml(item.user)} — клик, чтобы оставить на карте только этого игрока">${escapeHtml(item.user)}${isMine ? ' (вы)' : ''}</span>
+            <div class="lb-stats">
+              <div class="lb-pct">${pct}%</div>
+              <div class="lb-cnt">${item.count} д.</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const allUsers = sorted.map(s => s.user);
+
+      listEl.querySelectorAll('.lb-chk').forEach(chk => {
+        chk.onchange = () => {
+          const u = chk.dataset.user;
+          if (onlyMineMode) {
+            onlyMineMode = false;
+            hiddenPlayers.clear();
+            allUsers.forEach(other => {
+              if (other !== currentUser) hiddenPlayers.add(other);
+            });
+          }
+          if (chk.checked) {
+            hiddenPlayers.delete(u);
+          } else {
+            hiddenPlayers.add(u);
+          }
+          updateAllViews();
+        };
+      });
+
+      listEl.querySelectorAll('.lb-name').forEach(el => {
+        el.onclick = () => {
+          const target = el.dataset.solo;
+          const alreadySolo = (!onlyMineMode && hiddenPlayers.size === allUsers.length - 1 && !hiddenPlayers.has(target))
+            || (onlyMineMode && target === currentUser);
+
+          onlyMineMode = false;
+          hiddenPlayers.clear();
+          if (!alreadySolo) {
+            allUsers.forEach(u => {
+              if (u !== target) hiddenPlayers.add(u);
+            });
+          }
+          updateAllViews();
+        };
+      });
+    }
+
+    // ---------- Кнопки цветов, фильтры и прыжки ----------
+    const btnWrap = document.getElementById('color-buttons');
+    STATUS_ORDER.forEach(key => {
+      const cfg = COLORS[key];
+      const btn = document.createElement('button');
+      btn.className = 'color-btn';
+      btn.dataset.color = key;
+      btn.style.background = cfg.hex;
+      btn.title = `${cfg.label} — ${cfg.desc}`;
+      btn.innerHTML = `<span class="c-title">${cfg.label}</span><span class="c-desc">${cfg.desc}</span>`;
+      btn.onclick = () => saveMark(key);
+      btnWrap.appendChild(btn);
+    });
+
+    const filtersWrap = document.getElementById('filters-grid');
+    const disputedBtn = document.getElementById('btn-only-disputed');
+
+    STATUS_ORDER.forEach(key => {
+      const cfg = COLORS[key];
+      const chip = document.createElement('div');
+      chip.className = 'filter-chip';
+      chip.dataset.color = key;
+      chip.title = `${cfg.desc} (клик — скрыть/показать, ➜ — перейти к домам этого цвета)`;
+      chip.innerHTML = `
+        <span class="filter-chip-left">
+          <span class="dot" style="background:${cfg.hex}"></span>
+          <span class="filter-chip-name">${cfg.label}</span>
+        </span>
+        <span class="filter-chip-right">
+          <span class="filter-count" id="cnt-${key}">0</span>
+          <button class="jump-mini-btn" id="jmp-${key}" title="Прыгнуть к домам «${cfg.label}»">➜</button>
+        </span>
+      `;
+      chip.onclick = () => {
+        onlyDisputed = false;
+        visibleColors[key] = !visibleColors[key];
+        syncFilterUI();
+        refreshAllLayers();
+      };
+      chip.querySelector(`#jmp-${key}`).onclick = e => {
+        e.stopPropagation();
+        startOrStepJump(key);
+      };
+      filtersWrap.appendChild(chip);
+    });
+
+    disputedBtn.onclick = () => {
+      onlyDisputed = !onlyDisputed;
+      syncFilterUI();
+      refreshAllLayers();
+    };
+
+    document.getElementById('btn-jump-disputed').onclick = () => startOrStepJump('disputed');
+    document.getElementById('btn-jump-prev').onclick = () => stepJump(-1);
+    document.getElementById('btn-jump-next').onclick = () => stepJump(1);
+    document.getElementById('btn-jump-close').onclick = () => {
+      jumpMode = null;
+      document.getElementById('jump-bar').classList.add('hidden');
+    };
+
+    document.getElementById('btn-show-all').onclick = () => {
+      onlyDisputed = false;
+      STATUS_ORDER.forEach(k => visibleColors[k] = true);
+      syncFilterUI();
+      refreshAllLayers();
+    };
+
+    document.getElementById('btn-only-candidates').onclick = () => {
+      onlyDisputed = false;
+      STATUS_ORDER.forEach(k => visibleColors[k] = (k === 'green' || k === 'blue' || k === 'orange'));
+      syncFilterUI();
+      refreshAllLayers();
+    };
+
+    function syncFilterUI() {
+      disputedBtn.classList.toggle('active', onlyDisputed);
+      filtersWrap.classList.toggle('dimmed', onlyDisputed);
+      document.querySelectorAll('.filter-chip').forEach(ch => {
+        ch.classList.toggle('off', !visibleColors[ch.dataset.color]);
+      });
+    }
+
+    function getJumpIds(mode) {
+      const ids = Object.keys(layersById).filter(id => {
+        if (mode === 'disputed') return isBuildingDisputed(id);
+        return getBuildingColor(id) === mode;
+      });
+
+      ids.sort((a, b) => {
+        const ta = marks[a] && marks[a].updated_at ? new Date(marks[a].updated_at).getTime() : 0;
+        const tb = marks[b] && marks[b].updated_at ? new Date(marks[b].updated_at).getTime() : 0;
+        if (tb !== ta) return tb - ta;
+        return a.localeCompare(b);
+      });
+      return ids;
+    }
+
+    function updateJumpBarUI() {
+      const bar = document.getElementById('jump-bar');
+      if (!jumpMode) {
+        bar.classList.add('hidden');
+        return;
+      }
+      const list = getJumpIds(jumpMode);
+      const isDisp = jumpMode === 'disputed';
+      const hex = isDisp ? '#facc15' : COLORS[jumpMode].hex;
+      const label = isDisp ? 'Спорные дома' : COLORS[jumpMode].label;
+
+      document.getElementById('jump-dot').style.background = hex;
+      document.getElementById('jump-label').textContent = label;
+
+      if (list.length === 0) {
+        document.getElementById('jump-pos').textContent = '0 / 0';
+        document.getElementById('btn-jump-prev').disabled = true;
+        document.getElementById('btn-jump-next').disabled = true;
+      } else {
+        const curIdx = list.indexOf(selectedId);
+        const shownPos = curIdx >= 0 ? curIdx + 1 : Math.min(jumpIndex + 1, list.length);
+        document.getElementById('jump-pos').textContent = `${shownPos} / ${list.length}`;
+        document.getElementById('btn-jump-prev').disabled = list.length <= 1;
+        document.getElementById('btn-jump-next').disabled = list.length <= 1;
+      }
+      bar.classList.remove('hidden');
+    }
+
+    function startOrStepJump(mode) {
+      const list = getJumpIds(mode);
+      if (list.length === 0) return;
+
+      if (mode !== 'disputed' && !onlyDisputed && !visibleColors[mode]) {
+        visibleColors[mode] = true;
+        syncFilterUI();
+        refreshAllLayers();
+      }
+
+      if (jumpMode === mode) {
+        stepJump(1);
+        return;
+      }
+
+      jumpMode = mode;
+      const existingIdx = list.indexOf(selectedId);
+      jumpIndex = existingIdx >= 0 ? existingIdx : 0;
+      selectBuilding(list[jumpIndex], true);
+      updateJumpBarUI();
+    }
+
+    function stepJump(delta) {
+      if (!jumpMode) return;
+      const list = getJumpIds(jumpMode);
+      if (list.length === 0) {
+        updateJumpBarUI();
+        return;
+      }
+
+      const curIdx = list.indexOf(selectedId);
+      if (curIdx >= 0) {
+        jumpIndex = (curIdx + delta + list.length) % list.length;
+      } else {
+        jumpIndex = delta >= 0
+          ? Math.min(jumpIndex, list.length - 1)
+          : (jumpIndex - 1 + list.length) % list.length;
+      }
+
+      selectBuilding(list[jumpIndex], true);
+      updateJumpBarUI();
+    }
+
+    // ---------- Стили и перерисовка ----------
+    function getStyle(id) {
+      const colorKey = getBuildingColor(id);
+      const cfg = COLORS[colorKey];
+      const isSelected = id === selectedId;
+      const disputed = isBuildingDisputed(id);
+
+      const hasMyVote = Boolean(getMyVote(id));
+      const isOtherOnly = highlightMineMode && Boolean(currentUser) && colorKey !== 'gray' && !hasMyVote;
+      const isMyMarked = highlightMineMode && Boolean(currentUser) && colorKey !== 'gray' && hasMyVote;
+
+      if (disputed) {
+        return {
+          fillColor: cfg.hex,
+          fillOpacity: isOtherOnly ? 0.35 : cfg.opacity,
+          color: isSelected ? '#ffffff' : '#facc15',
+          weight: isSelected ? 5 : 4.2,
+          dashArray: isSelected ? '8, 4' : null,
+          opacity: 1
+        };
+      }
+
+      if (isOtherOnly) {
+        return {
+          fillColor: cfg.hex,
+          fillOpacity: 0.22,
+          color: isSelected ? '#ffffff' : cfg.border,
+          weight: isSelected ? 3.5 : 1.3,
+          dashArray: isSelected ? null : '4, 4',
+          opacity: isSelected ? 1 : 0.72
+        };
+      }
+
+      if (isMyMarked) {
+        return {
+          fillColor: cfg.hex,
+          fillOpacity: Math.min(0.9, cfg.opacity + 0.08),
+          color: isSelected ? '#ffffff' : '#22d3ee',
+          weight: isSelected ? 4 : 2.6,
+          dashArray: null,
+          opacity: 1
+        };
+      }
+
+      return {
+        fillColor: cfg.hex,
+        fillOpacity: cfg.opacity,
+        color: isSelected ? '#ffffff' : cfg.border,
+        weight: isSelected ? 3.5 : 1.2,
+        dashArray: null,
+        opacity: 0.95
+      };
+    }
+
+    function applyBuildingVisual(id) {
+      const layer = layersById[id];
+      if (!layer) return;
+
+      const colorKey = getBuildingColor(id);
+      const disputed = isBuildingDisputed(id);
+      const shouldShow = (id === selectedId) || (onlyDisputed ? disputed : visibleColors[colorKey]);
+      const isOnMap = buildingsGroup.hasLayer(layer);
+
+      if (shouldShow && !isOnMap) {
+        buildingsGroup.addLayer(layer);
+      } else if (!shouldShow && isOnMap) {
+        buildingsGroup.removeLayer(layer);
+      }
+
+      if (shouldShow) {
+        layer.setStyle(getStyle(id));
+        if (disputed || id === selectedId) layer.bringToFront();
+        if (typeof layer.redraw === 'function') layer.redraw();
+      }
+    }
+
+    function forceCanvasRedraw() {
+      if (canvasRenderer && typeof canvasRenderer._redraw === 'function') {
+        canvasRenderer._redraw();
+      }
+    }
+
+    function refreshAllLayers() {
+      Object.keys(layersById).forEach(applyBuildingVisual);
+      forceCanvasRedraw();
+    }
+
+    function updateStats() {
+      const counts = { gray: 0, red: 0, orange: 0, blue: 0, green: 0, black: 0 };
+      let disputedCount = 0;
+      const ids = Object.keys(layersById);
+      ids.forEach(id => {
+        counts[getBuildingColor(id)]++;
+        if (isBuildingDisputed(id)) disputedCount++;
+      });
+      document.getElementById('total-count').textContent = ids.length;
+      document.getElementById('cnt-disputed').textContent = disputedCount;
+      document.getElementById('btn-jump-disputed').disabled = disputedCount === 0;
+      STATUS_ORDER.forEach(k => {
+        const el = document.getElementById('cnt-' + k);
+        if (el) el.textContent = counts[k];
+        const jbtn = document.getElementById('jmp-' + k);
+        if (jbtn) jbtn.disabled = counts[k] === 0;
+      });
+      renderLeaderboard();
+      updateJumpBarUI();
+      updateRandomBarUI();
+    }
+
+    function updateAllViews() {
+      refreshAllLayers();
+      updateStats();
+    }
+
+    // ---------- Ссылки на карты, панорамы и площадки ----------
+    function updateExternalLinks(lat, lng, placeText, addrText) {
+      const cleanPlace = cleanPlaceName(placeText);
+      const cleanAddr = (addrText || '').trim();
+      const fullAddr = [cleanPlace, cleanAddr].filter(Boolean).join(', ');
+
+      document.getElementById('lnk-ymap').href = fullAddr
+        ? `https://yandex.ru/maps/?text=${encodeURIComponent(fullAddr)}&ll=${lng}%2C${lat}&z=18`
+        : `https://yandex.ru/maps/?ll=${lng}%2C${lat}&pt=${lng}%2C${lat}&z=18`;
+
+      document.getElementById('lnk-2gis').href = fullAddr
+        ? `https://2gis.ru/search/${encodeURIComponent(fullAddr)}?m=${lng}%2C${lat}%2F18`
+        : `https://2gis.ru/?m=${lng}%2C${lat}%2F18`;
+
+      document.getElementById('lnk-gmap').href = fullAddr
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`
+        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+      document.getElementById('lnk-ypano').href = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&panorama%5Bpoint%5D=${lng}%2C${lat}&z=18`;
+      document.getElementById('lnk-ymrc').href  = `https://yandex.ru/maps/?ll=${lng}%2C${lat}&z=18&l=mrc`;
+      document.getElementById('lnk-gsv').href   = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+
+      const queryParts = [];
+      if (cleanPlace) queryParts.push(`"${cleanPlace}"`);
+      if (cleanAddr) queryParts.push(cleanAddr);
+      const searchTail = queryParts.length > 0 ? queryParts.join(' ') : `${lat} ${lng}`;
+
+      const makeGoogle = domain => `https://www.google.com/search?q=${encodeURIComponent(`site:${domain} ${searchTail}`)}`;
+      const makeYandex = domain => `https://yandex.ru/search/?text=${encodeURIComponent(`site:${domain} ${searchTail}`)}`;
+
+      document.getElementById('lnk-avito-g').href    = makeGoogle('avito.ru');
+      document.getElementById('lnk-avito-y').href    = makeYandex('avito.ru');
+      document.getElementById('lnk-cian-g').href     = makeGoogle('cian.ru');
+      document.getElementById('lnk-cian-y').href     = makeYandex('cian.ru');
+      document.getElementById('lnk-yrealty-g').href  = makeGoogle('realty.ya.ru');
+      document.getElementById('lnk-yrealty-y').href  = makeYandex('realty.ya.ru');
+      document.getElementById('lnk-domclick-g').href = makeGoogle('domclick.ru');
+      document.getElementById('lnk-domclick-y').href = makeYandex('domclick.ru');
+      document.getElementById('lnk-pastvu').href     = `https://pastvu.com/?g=${lat},${lng}&z=17`;
+    }
+
+    const placeInput = document.getElementById('place-override');
+    const addrInput = document.getElementById('addr-override');
+
+    function onManualAddrEdit() {
+      userEditedAddress = true;
+      document.getElementById('geo-detect-status').textContent = '';
+      if (selectedCoords) {
+        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, placeInput.value, addrInput.value);
+      }
+    }
+    placeInput.addEventListener('input', onManualAddrEdit);
+    addrInput.addEventListener('input', onManualAddrEdit);
+
+    async function detectPlaceFromOSM(id, lat, lng, osmPlace, osmAddr) {
+      const geoStatus = document.getElementById('geo-detect-status');
+      if (osmPlace && osmAddr) {
+        geoStatus.textContent = '';
+        return;
+      }
+
+      if (reverseGeoCache[id]) {
+        applyDetectedGeo(id, reverseGeoCache[id], osmPlace, osmAddr);
+        return;
+      }
+
+      geoStatus.textContent = 'уточняем н.п...';
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&accept-language=ru`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const a = (data && data.address) || {};
+
+        const rawPlace = a.village || a.hamlet || a.town || a.city || a.isolated_dwelling || '';
+        const detectedPlace = cleanPlaceName(rawPlace) || DEFAULT_CITY;
+        const detectedAddr = [a.road, a.house_number].filter(Boolean).join(', ');
+
+        const info = { place: detectedPlace, addr: detectedAddr };
+        reverseGeoCache[id] = info;
+        applyDetectedGeo(id, info, osmPlace, osmAddr);
+      } catch {
+        if (selectedId === id) geoStatus.textContent = '';
+      }
+    }
+
+    function applyDetectedGeo(id, info, osmPlace, osmAddr) {
+      if (selectedId !== id || userEditedAddress) return;
+      document.getElementById('geo-detect-status').textContent = '';
+
+      const finalPlace = osmPlace || info.place || DEFAULT_CITY;
+      const finalAddr = osmAddr || info.addr || '';
+
+      placeInput.value = finalPlace;
+      if (!osmAddr && finalAddr) {
+        addrInput.value = finalAddr;
+      }
+
+      const displayTitle = [finalPlace, finalAddr].filter(Boolean).join(', ') || `Здание (${id})`;
+      document.getElementById('b-title').textContent = displayTitle;
+      document.getElementById('dock-addr').textContent = displayTitle;
+
+      if (selectedCoords) {
+        updateExternalLinks(selectedCoords.lat, selectedCoords.lng, finalPlace, finalAddr);
+      }
+    }
+
+    // ---------- Карточка дома: голоса и история ----------
+    function renderVotes(mark) {
+      const wrap = document.getElementById('votes-list');
+      const votesObj = getVotesMap(mark);
+      const entries = Object.entries(votesObj)
+        .map(([user, v]) => ({ user, color: normalizeColor(v.color), reason: v.reason || '', at: v.at }))
+        .filter(v => v.color !== 'gray')
+        .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+
+      document.getElementById('votes-count').textContent = entries.length;
+
+      if (entries.length === 0) {
+        wrap.innerHTML = '<div class="muted">Оценок пока нет.</div>';
+        return;
+      }
+
+      wrap.innerHTML = entries.map(item => {
+        const cfg = COLORS[item.color];
+        const isMine = currentUser && item.user === currentUser;
+        const note = item.reason
+          ? `<div class="vote-reason">${escapeHtml(item.reason)}</div>`
+          : '<div class="muted">Без комментария</div>';
+        return `
+          <div class="vote-item ${isMine ? 'mine' : ''}" style="border-left-color:${cfg.uiHex}">
+            <div class="vote-head">
+              <span class="vote-user">${escapeHtml(item.user)}${isMine ? ' (Вы)' : ''}</span>
+              <span>${escapeHtml(formatDate(item.at))}</span>
+            </div>
+            <div class="vote-status" style="color:${cfg.uiHex}">
+              <span class="dot" style="background:${cfg.hex}"></span>
+              <span>${escapeHtml(cfg.label)}</span>
+            </div>
+            ${note}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHistory(mark) {
+      const wrap = document.getElementById('history-list');
+      const items = (mark && Array.isArray(mark.history) && mark.history.length > 0)
+        ? [...mark.history].reverse()
+        : (mark && mark.updated_by ? [{ user: mark.updated_by, color: mark.color, reason: mark.reason, at: mark.updated_at }] : []);
+
+      if (items.length === 0) {
+        wrap.innerHTML = '<div class="muted">История пуста.</div>';
+        return;
+      }
+
+      wrap.innerHTML = items.map(item => {
+        const cKey = normalizeColor(item.color);
+        const cfg = COLORS[cKey];
+        const statusText = cKey === 'gray' ? 'Сбросил свой голос' : cfg.label;
+        const note = item.reason ? `<div class="vote-reason">${escapeHtml(item.reason)}</div>` : '';
+        return `
+          <div class="vote-item" style="border-left-color:${cfg.uiHex}">
+            <div class="vote-head">
+              <span class="vote-user">${escapeHtml(item.user || 'Неизвестно')}</span>
+              <span>${escapeHtml(formatDate(item.at))}</span>
+            </div>
+            <div class="vote-status" style="color:${cfg.uiHex}">
+              <span class="dot" style="background:${cfg.hex}"></span>
+              <span>${escapeHtml(statusText)}</span>
+            </div>
+            ${note}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function highlightActiveColor(colorKey) {
+      document.querySelectorAll('.color-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.color === colorKey);
+      });
+    }
+
+    function refreshSelectedCard(overwriteReasonInput = false) {
+      if (!selectedId) return;
+      const feature = featuresById[selectedId];
+      const mark = marks[selectedId] || null;
+      const p = (feature && feature.properties) || {};
+      const levels = p['building:levels'] ? `Этажей: ${p['building:levels']}` : '';
+
+      const votesCount = Object.keys(getVotesMap(mark)).length;
+      const lastInfo = votesCount > 0 && mark && mark.updated_by
+        ? `Оценок: ${votesCount} • Посл.: ${mark.updated_by} (${formatDate(mark.updated_at)})`
+        : 'Еще не проверялось';
+      document.getElementById('b-meta').textContent = [lastInfo, levels].filter(Boolean).join(' • ');
+
+      document.getElementById('disputed-banner').classList.toggle('hidden', !isBuildingDisputed(selectedId));
+
+      const myVote = getMyVote(selectedId);
+      const myColor = myVote ? normalizeColor(myVote.color) : 'gray';
+      highlightActiveColor(myColor);
+
+      if (overwriteReasonInput || document.activeElement !== document.getElementById('reason')) {
+        document.getElementById('reason').value = (myVote && myVote.reason) || '';
+      }
+
+      renderVotes(mark);
+      renderHistory(mark);
+      updateAuthUI();
+    }
+
+    function selectBuilding(id, zoomTo = false) {
+      const feature = featuresById[id];
+      const layer = layersById[id];
+      if (!feature || !layer) return;
+
+      const prev = selectedId;
+      selectedId = id;
+      userEditedAddress = false;
+      if (prev && prev !== id) applyBuildingVisual(prev);
+      applyBuildingVisual(id);
+      forceCanvasRedraw();
+
+      if (zoomTo) {
+        const leftPad = lbEl.classList.contains('collapsed') ? 60 : 290;
+        map.fitBounds(layer.getBounds(), {
+          maxZoom: 18,
+          paddingTopLeft: [leftPad, 50],
+          paddingBottomRight: [40, 235]
+        });
+      }
+
+      const osmPlace = getOsmPlace(feature);
+      const osmAddr = getOsmAddress(feature);
+      const cached = reverseGeoCache[id];
+
+      const initPlace = osmPlace || (cached && cached.place) || DEFAULT_CITY;
+      const initAddr = osmAddr || (cached && cached.addr) || '';
+
+      const titleText = [initPlace, initAddr].filter(Boolean).join(', ') || `Здание без адреса (${id})`;
+      document.getElementById('b-title').textContent = titleText;
+      document.getElementById('dock-addr').textContent = titleText;
+
+      const c = layer.getBounds().getCenter();
+      selectedCoords = { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
+
+      placeInput.value = initPlace;
+      addrInput.value = initAddr;
+      updateExternalLinks(selectedCoords.lat, selectedCoords.lng, initPlace, initAddr);
+
+      document.getElementById('save-status').textContent = '';
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+      dockEl.classList.remove('hidden');
+
+      refreshSelectedCard(true);
+      updateJumpBarUI();
+      detectPlaceFromOSM(id, selectedCoords.lat, selectedCoords.lng, osmPlace, osmAddr);
+    }
+
+    function deselectBuilding() {
+      if (!selectedId) return;
+      const prev = selectedId;
+      selectedId = null;
+      selectedCoords = null;
+      applyBuildingVisual(prev);
+      forceCanvasRedraw();
+      document.getElementById('editor').classList.add('hidden');
+      dockEl.classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-close-dock').onclick = deselectBuilding;
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && selectedId) {
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') deselectBuilding();
+      }
+    });
+
+    // ---------- Сохранение голоса ----------
+    async function saveMark(colorKey) {
+      if (!selectedId) return;
+      if (!currentPass || !currentUser) {
+        document.getElementById('pass-input').focus();
+        return;
+      }
+
+      isSaving = true;
+      updateAuthUI();
+      const saveStatus = document.getElementById('save-status');
+      saveStatus.className = 'muted';
+      saveStatus.textContent = 'Сохранение...';
+
+      const reasonVal = document.getElementById('reason').value.trim();
+
+      const { data, error } = await db.rpc('save_building_mark', {
+        p_pass: currentPass,
+        p_building_id: selectedId,
+        p_color: colorKey,
+        p_reason: reasonVal
+      });
+
+      isSaving = false;
+
+      if (error) {
+        if (/заблокирован|неверный пароль/i.test(error.message)) {
+          clearSession(error.message);
+        } else {
+          updateAuthUI();
+        }
+        saveStatus.className = 'err-text';
+        saveStatus.textContent = 'Ошибка: ' + error.message;
+        return;
+      }
+
+      if (data && data.building_id) {
+        marks[data.building_id] = data;
+        applyBuildingVisual(data.building_id);
+        forceCanvasRedraw();
+        updateStats();
+        refreshSelectedCard(true);
+      } else {
+        updateAuthUI();
+      }
+
+      saveStatus.className = 'ok-text';
+      saveStatus.textContent = colorKey === 'gray' ? 'Ваш голос сброшен' : 'Ваш голос сохранён';
+    }
+
+    document.getElementById('save-reason').onclick = () => {
+      if (!selectedId) return;
+      const myVote = getMyVote(selectedId);
+      if (!myVote) {
+        const saveStatus = document.getElementById('save-status');
+        saveStatus.className = 'err-text';
+        saveStatus.textContent = 'Сначала выберите статус дома выше';
+        return;
+      }
+      saveMark(normalizeColor(myVote.color));
+    };
+
+    document.getElementById('reason').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('save-reason').click();
+      }
+    });
+
+    // ---------- Поиск по адресу ----------
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    const searchClear = document.getElementById('btn-search-clear');
+
+    function renderSearch(query) {
+      const q = query.trim().toLowerCase().replace(/ё/g, 'е');
+      searchClear.classList.toggle('hidden', !q);
+      if (q.length < 2) {
+        searchResults.classList.add('hidden');
+        return;
+      }
+
+      const tokens = q.split(/[\s,]+/).filter(Boolean);
+      const matches = searchIndex
+        .filter(item => tokens.every(t => item.norm.includes(t)))
+        .slice(0, 20);
+
+      let html = matches.map(m => {
+        const hex = COLORS[getBuildingColor(m.id)].hex;
+        const warn = isBuildingDisputed(m.id) ? '<span style="color:#facc15; margin-left:auto;">⚠</span>' : '';
+        return `<div class="search-item" data-id="${escapeHtml(m.id)}">
+          <span class="dot" style="background:${hex}"></span>
+          <span>${escapeHtml(m.label)}</span>
+          ${warn}
+        </div>`;
+      }).join('');
+
+      html += `<div class="search-item" data-nominatim="1" style="color:#93c5fd;">
+        <span>🔍 Искать «${escapeHtml(query.trim())}» в этой области (OSM)</span>
+      </div>`;
+
+      searchResults.innerHTML = html;
+      searchResults.classList.remove('hidden');
+
+      searchResults.querySelectorAll('.search-item[data-id]').forEach(el => {
+        el.onclick = () => {
+          searchResults.classList.add('hidden');
+          selectBuilding(el.dataset.id, true);
+        };
+      });
+
+      const nomBtn = searchResults.querySelector('.search-item[data-nominatim]');
+      if (nomBtn) {
+        nomBtn.onclick = async () => {
+          nomBtn.textContent = 'Ищем координаты в OSM...';
+          try {
+            const rawQ = query.trim();
+            let viewboxParam = '';
+            if (loadedBounds && loadedBounds.isValid()) {
+              const sw = loadedBounds.getSouthWest();
+              const ne = loadedBounds.getNorthEast();
+              viewboxParam = `&viewbox=${sw.lng.toFixed(5)},${ne.lat.toFixed(5)},${ne.lng.toFixed(5)},${sw.lat.toFixed(5)}`;
+            }
+
+            let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru${viewboxParam}&bounded=1&q=${encodeURIComponent(rawQ)}`);
+            let arr = await res.json();
+
+            if (!arr || arr.length === 0) {
+              res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru${viewboxParam}&q=${encodeURIComponent(rawQ)}`);
+              arr = await res.json();
+            }
+
+            if (arr && arr[0]) {
+              map.setView([Number(arr[0].lat), Number(arr[0].lon)], 18);
+              searchResults.classList.add('hidden');
+            } else {
+              nomBtn.textContent = 'Адрес не найден в OSM';
+            }
+          } catch {
+            nomBtn.textContent = 'Ошибка поиска OSM';
+          }
+        };
+      }
+    }
+
+    searchInput.addEventListener('input', e => renderSearch(e.target.value));
+    searchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const first = searchResults.querySelector('.search-item');
+        if (first) first.click();
+      }
+    });
+    searchClear.onclick = () => {
+      searchInput.value = '';
+      searchResults.classList.add('hidden');
+      searchClear.classList.add('hidden');
+    };
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
+    });
+
+    // ---------- Синхронизация ----------
+    function hasRowChanged(oldRow, newRow) {
+      if (!oldRow) return true;
+      return oldRow.updated_at !== newRow.updated_at
+        || oldRow.color !== newRow.color
+        || oldRow.is_disputed !== newRow.is_disputed
+        || JSON.stringify(oldRow.votes || {}) !== JSON.stringify(newRow.votes || {});
+    }
+
+    async function syncMarks(showStatus = false) {
+      if (syncInProgress) return;
+      syncInProgress = true;
+      const statusEl = document.getElementById('load-status');
+      if (showStatus) {
+        statusEl.style.color = '#94a3b8';
+        statusEl.textContent = 'Синхронизация...';
+      }
+
+      try {
+        const pageSize = 1000;
+        let from = 0;
+        const freshMap = {};
+
+        while (true) {
+          const { data, error } = await db
+            .from('building_marks')
+            .select('*')
+            .order('building_id', { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+
+          data.forEach(row => { freshMap[row.building_id] = row; });
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+
+        const changedIds = new Set();
+        Object.keys(marks).forEach(id => {
+          if (!freshMap[id]) { delete marks[id]; changedIds.add(id); }
+        });
+        Object.entries(freshMap).forEach(([id, row]) => {
+          if (hasRowChanged(marks[id], row)) {
+            marks[id] = row;
+            changedIds.add(id);
+          }
+        });
+
+        if (changedIds.size > 0) {
+          changedIds.forEach(applyBuildingVisual);
+          forceCanvasRedraw();
+          updateStats();
+          if (selectedId && changedIds.has(selectedId)) {
+            refreshSelectedCard(false);
+          }
+        } else {
+          renderLeaderboard();
+          updateRandomBarUI();
+        }
+
+        statusEl.style.color = '#4ade80';
+        statusEl.textContent = 'Онлайн • ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch (err) {
+        statusEl.style.color = '#fbbf24';
+        statusEl.textContent = 'Ошибка синхронизации: ' + err.message;
+        console.error(err);
+      } finally {
+        syncInProgress = false;
+      }
+    }
+
+    document.getElementById('btn-sync').onclick = () => syncMarks(true);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncMarks(false);
+    });
+
+    // ---------- Запуск ----------
+    async function init() {
+      const statusEl = document.getElementById('load-status');
+      await restoreSession();
+
+      try {
+        statusEl.textContent = 'Загрузка контуров домов...';
+        const bounds = L.latLngBounds();
+
+        for (const fileUrl of GEOJSON_FILES) {
+          const res = await fetch(fileUrl, { cache: 'no-cache' });
+          if (!res.ok) throw new Error(`Файл ${fileUrl} не найден (HTTP ${res.status})`);
+          const geojson = await res.json();
+
+          L.geoJSON(geojson, {
+            renderer: canvasRenderer,
+            filter: f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'),
+            onEachFeature: (feature, layer) => {
+              const id = getFeatureId(feature);
+              if (layersById[id]) return;
+
+              layersById[id] = layer;
+              featuresById[id] = feature;
+              layer.setStyle(getStyle(id));
+              layer.on('click', () => selectBuilding(id, false));
+              buildingsGroup.addLayer(layer);
+              bounds.extend(layer.getBounds());
+
+              const place = getOsmPlace(feature);
+              const addr = getOsmAddress(feature);
+              const label = [place, addr].filter(Boolean).join(', ');
+              if (label) {
+                searchIndex.push({
+                  id,
+                  label,
+                  norm: label.toLowerCase().replace(/ё/g, 'е')
+                });
+              }
+            }
+          });
+        }
+
+        if (Object.keys(layersById).length === 0) {
+          throw new Error('В загруженных GeoJSON нет полигонов домов');
+        }
+
+        loadedBounds = bounds;
+        searchIndex.sort((a, b) => a.label.localeCompare(b.label, 'ru', { numeric: true }));
+        map.fitBounds(bounds);
+        updateStats();
+      } catch (err) {
+        statusEl.style.color = '#f87171';
+        statusEl.textContent = 'Ошибка карты: ' + err.message;
+        console.error(err);
+        return;
+      }
+
+      await syncMarks(true);
+
+      db.channel('marks-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'building_marks' }, payload => {
+          const row = payload.new;
+          if (!row || !row.building_id) return;
+          marks[row.building_id] = row;
+          applyBuildingVisual(row.building_id);
+          forceCanvasRedraw();
+          updateStats();
+          if (row.building_id === selectedId) {
+            refreshSelectedCard(false);
+          }
+        })
+        .subscribe();
+
+      setInterval(() => {
+        if (!document.hidden) syncMarks(false);
+      }, 15000);
+    }
+
+    init();
+  </script>
+</body>
+</html>
