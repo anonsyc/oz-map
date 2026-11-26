@@ -47,10 +47,10 @@
     /* Таблица игроков и фильтр участников слева поверх карты */
     #leaderboard-panel {
       position: absolute;
-      top: 128px;
+      top: 144px;
       left: 10px;
       width: 262px;
-      max-height: calc(100vh - 300px);
+      max-height: calc(100vh - 315px);
       z-index: 880;
       background: rgba(15, 23, 42, 0.92);
       backdrop-filter: blur(8px);
@@ -62,11 +62,18 @@
       flex-direction: column;
       gap: 8px;
     }
+    #lb-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
     #leaderboard-panel.collapsed {
       width: auto;
       padding: 6px 10px;
     }
-    #leaderboard-panel.collapsed #lb-body { display: none; }
+    #leaderboard-panel.collapsed #lb-body {
+      display: none !important;
+    }
     .lb-head {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
@@ -271,6 +278,23 @@
     }
     .jump-mini-btn:hover:not(:disabled) { background: #2563eb; border-color: #60a5fa; }
 
+    /* Навигатор прыжков по выбранному цвету */
+    .jump-bar {
+      margin-top: 6px; background: #0f172a; border: 1px solid #3b82f6;
+      border-radius: 6px; padding: 6px 8px; display: flex; align-items: center;
+      justify-content: space-between; gap: 6px; font-size: 12px;
+    }
+    .jump-bar-info {
+      display: flex; align-items: center; gap: 6px; min-width: 0;
+    }
+    .jump-bar-label {
+      font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .jump-bar-pos {
+      color: #93c5fd; font-weight: 700; white-space: nowrap; font-size: 11px;
+    }
+    .jump-bar-btns { display: flex; gap: 4px; flex-shrink: 0; }
+
     .disputed-row {
       margin-top: 6px; display: flex; gap: 6px; align-items: stretch;
     }
@@ -289,23 +313,6 @@
       background: #0f172a; color: #fde047; font-size: 13px; font-weight: 700;
     }
     .disputed-jump-btn:hover:not(:disabled) { background: #eab308; color: #0f172a; }
-
-    /* Навигатор прыжков по выбранному цвету */
-    .jump-bar {
-      margin-top: 6px; background: #0f172a; border: 1px solid #3b82f6;
-      border-radius: 6px; padding: 6px 8px; display: flex; align-items: center;
-      justify-content: space-between; gap: 6px; font-size: 12px;
-    }
-    .jump-bar-info {
-      display: flex; align-items: center; gap: 6px; min-width: 0;
-    }
-    .jump-bar-label {
-      font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .jump-bar-pos {
-      color: #93c5fd; font-weight: 700; white-space: nowrap; font-size: 11px;
-    }
-    .jump-bar-btns { display: flex; gap: 4px; flex-shrink: 0; }
 
     .disputed-banner {
       background: #422006; border: 2px solid #facc15; color: #fef08a;
@@ -358,7 +365,7 @@
         <button id="btn-lb-toggle" class="btn-sm" title="Свернуть / развернуть">—</button>
       </div>
 
-      <div id="lb-body" style="display:flex; flex-direction:column; gap:8px;">
+      <div id="lb-body">
         <div class="lb-progress-wrap">
           <div class="between" style="font-size:11px;">
             <span class="muted">Проверено командой:</span>
@@ -478,15 +485,7 @@
       </div>
       <div class="filters-grid" id="filters-grid"></div>
 
-      <div class="disputed-row">
-        <button id="btn-only-disputed" class="disputed-filter-btn" title="Показать только дома, где оценки участников разошлись">
-          <span>⚠ Только спорные дома</span>
-          <span class="disputed-badge" id="cnt-disputed">0</span>
-        </button>
-        <button id="btn-jump-disputed" class="disputed-jump-btn" title="Прыгнуть к следующему спорному дому">➜</button>
-      </div>
-
-      <!-- Мини-навигатор прыжков -->
+      <!-- Мини-навигатор прыжков (выше спорных домов) -->
       <div id="jump-bar" class="jump-bar hidden">
         <div class="jump-bar-info">
           <span id="jump-dot" class="dot"></span>
@@ -498,6 +497,14 @@
           <button id="btn-jump-next" class="btn-sm btn-primary" title="Следующий дом">▶</button>
           <button id="btn-jump-close" class="btn-sm" title="Закрыть навигатор">✕</button>
         </div>
+      </div>
+
+      <div class="disputed-row">
+        <button id="btn-only-disputed" class="disputed-filter-btn" title="Показать только дома, где оценки участников разошлись">
+          <span>⚠ Только спорные дома</span>
+          <span class="disputed-badge" id="cnt-disputed">0</span>
+        </button>
+        <button id="btn-jump-disputed" class="disputed-jump-btn" title="Прыгнуть к следующему спорному дому">➜</button>
       </div>
     </div>
 
@@ -637,15 +644,12 @@
     const reverseGeoCache = {};
     const visibleColors = { gray: true, red: true, orange: true, blue: true, green: true, black: true };
 
-    // Состояние фильтра игроков и подсветки своих домов
     const hiddenPlayers = new Set();
     let onlyMineMode = false;
     let highlightMineMode = false;
 
-    // Состояние кнопки случайного дома ('all' — никем, 'mine' — без моей оценки)
     let randomMode = 'all';
 
-    // Состояние прыжков по цветам
     let jumpMode = null;
     let jumpIndex = 0;
 
