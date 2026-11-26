@@ -44,13 +44,25 @@
       display: grid; grid-template-columns: 42% 1fr; gap: 6px;
     }
 
-    /* Таблица игроков и фильтр участников слева поверх карты */
+    /* Индикатор онлайна */
+    .online-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.85); flex-shrink: 0; display: inline-block;
+    }
+    .online-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 7px; border-radius: 999px; background: #1e293b; border: 1px solid #334155;
+      font-size: 11px; color: #cbd5e1; font-weight: 600;
+    }
+
+    /* Таблица игроков и фильтр участников слева сверху */
     #leaderboard-panel {
       position: absolute;
       top: 144px;
       left: 10px;
       width: 262px;
-      max-height: calc(100vh - 315px);
+      max-height: calc(100vh - 510px);
+      min-height: 44px;
       z-index: 880;
       background: rgba(15, 23, 42, 0.92);
       backdrop-filter: blur(8px);
@@ -66,10 +78,13 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      min-height: 0;
+      overflow: hidden;
     }
     #leaderboard-panel.collapsed {
       width: auto;
       padding: 6px 10px;
+      max-height: none;
     }
     #leaderboard-panel.collapsed #lb-body {
       display: none !important;
@@ -104,8 +119,8 @@
     }
     .lb-highlight-row input { margin: 0; accent-color: #22d3ee; cursor: pointer; }
     .lb-list {
-      display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 280px;
-      padding-right: 2px;
+      display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+      padding-right: 2px; min-height: 0;
     }
     .lb-row {
       display: flex; align-items: center; gap: 6px; padding: 5px 6px;
@@ -123,13 +138,113 @@
     .lb-rank.r3 { color: #fb923c; }
     .lb-name {
       flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      font-weight: 600; color: #f8fafc; cursor: pointer;
+      font-weight: 600; color: #f8fafc; cursor: pointer; display: flex; align-items: center; gap: 5px;
     }
+    .lb-name-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lb-stats {
       text-align: right; flex-shrink: 0; line-height: 1.15;
     }
     .lb-pct { font-size: 12px; font-weight: 700; color: #4ade80; }
     .lb-cnt { font-size: 10px; color: #94a3b8; }
+
+    /* Чат в левом нижнем углу карты */
+    #chat-panel {
+      position: absolute;
+      bottom: 18px;
+      left: 10px;
+      width: 310px;
+      height: 340px;
+      max-height: calc(100vh - 200px);
+      z-index: 920;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #475569;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #chat-panel.collapsed {
+      width: auto;
+      height: auto;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    #chat-panel.collapsed #chat-body {
+      display: none !important;
+    }
+    .chat-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 10px; background: rgba(30, 41, 59, 0.9);
+      border-bottom: 1px solid #334155; user-select: none;
+    }
+    #chat-panel.collapsed .chat-head {
+      border-bottom: none; padding: 7px 12px;
+    }
+    .chat-head-left {
+      display: flex; align-items: center; gap: 7px; min-width: 0;
+    }
+    .chat-title { font-size: 12.5px; font-weight: 700; color: #f8fafc; white-space: nowrap; }
+    .chat-unread-badge {
+      background: #dc2626; color: #fff; font-size: 11px; font-weight: 800;
+      padding: 1px 7px; border-radius: 999px; min-width: 20px; text-align: center;
+    }
+    #chat-body {
+      flex: 1; min-height: 0; display: flex; flex-direction: column;
+    }
+    .chat-messages {
+      flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px;
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .chat-msg {
+      background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+      padding: 6px 8px; font-size: 12px; line-height: 1.35; word-break: break-word;
+    }
+    .chat-msg.mine {
+      background: #13253b; border-color: #2563eb;
+    }
+    .chat-msg-head {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+      margin-bottom: 3px; font-size: 10.5px; color: #94a3b8;
+    }
+    .chat-msg-user { font-weight: 700; color: #f8fafc; }
+    .chat-msg.mine .chat-msg-user { color: #93c5fd; }
+    .chat-msg-text { color: #e2e8f0; white-space: pre-wrap; }
+    .chat-link {
+      color: #60a5fa; text-decoration: underline; word-break: break-all;
+    }
+    .chat-link:hover { color: #93c5fd; }
+    .chat-bldg-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 3px; margin-bottom: 2px; padding: 4px 8px; border-radius: 6px;
+      background: #0f172a; border: 1px solid #3b82f6; color: #93c5fd;
+      font-size: 11.5px; font-weight: 600; cursor: pointer; text-align: left; max-width: 100%;
+    }
+    .chat-bldg-chip:hover { background: #1d4ed8; color: #fff; }
+    .chat-bldg-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .chat-attach-bar {
+      padding: 5px 8px; background: #132038; border-top: 1px solid #334155;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      font-size: 11px; color: #93c5fd;
+    }
+    .chat-attach-label {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;
+    }
+    .chat-input-wrap {
+      padding: 7px 8px; border-top: 1px solid #334155; background: rgba(15, 23, 42, 0.96);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .chat-input-row {
+      display: flex; gap: 5px; align-items: center;
+    }
+    #chat-input {
+      padding: 6px 8px; font-size: 12px;
+    }
+    #btn-chat-send {
+      padding: 6px 10px; font-size: 12px; flex-shrink: 0;
+    }
 
     /* Общий нижний стек по центру карты (кнопка рандома + панель оценки) */
     #bottom-stack {
@@ -137,7 +252,7 @@
       bottom: 18px;
       left: 50%;
       transform: translateX(-50%);
-      width: min(940px, calc(100% - 28px));
+      width: min(840px, calc(100% - 28px));
       z-index: 900;
       display: flex;
       flex-direction: column;
@@ -204,7 +319,7 @@
     }
     .dock-addr {
       font-size: 13px; font-weight: 700; color: #f8fafc;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 310px;
     }
     .dock-colors {
       display: grid;
@@ -358,7 +473,7 @@
   <div id="map-wrap">
     <div id="map"></div>
 
-    <!-- Таблица игроков + фильтр участников слева на карте -->
+    <!-- Таблица игроков + фильтр участников слева сверху -->
     <div id="leaderboard-panel">
       <div class="lb-head">
         <span class="lb-title">🏆 Игроки и прогресс</span>
@@ -394,6 +509,43 @@
       </div>
     </div>
 
+    <!-- Чат в левом нижнем углу -->
+    <div id="chat-panel">
+      <div class="chat-head" id="chat-head">
+        <div class="chat-head-left">
+          <span class="chat-title">💬 Чат</span>
+          <span id="chat-unread" class="chat-unread-badge hidden">0</span>
+          <span id="chat-online-pill" class="online-pill" title="Никого нет онлайн">
+            <span class="online-dot"></span>
+            <span id="chat-online-count">0</span>
+          </span>
+        </div>
+        <button id="btn-chat-toggle" class="btn-sm" title="Свернуть / развернуть чат">—</button>
+      </div>
+
+      <div id="chat-body">
+        <div id="chat-messages" class="chat-messages">
+          <div class="muted">Загрузка чата...</div>
+        </div>
+
+        <div id="chat-attach-bar" class="chat-attach-bar hidden">
+          <span id="chat-attach-label" class="chat-attach-label"></span>
+          <button id="btn-chat-unattach" class="btn-sm" title="Открепить дом">✕</button>
+        </div>
+
+        <div class="chat-input-wrap">
+          <div id="chat-readonly-note" class="muted" style="font-size:11px;">
+            Войдите по паролю справа, чтобы писать в чат.
+          </div>
+          <div id="chat-form-row" class="chat-input-row hidden">
+            <input type="text" id="chat-input" maxlength="500" placeholder="Сообщение или ссылка (Enter)..." autocomplete="off" />
+            <button id="btn-chat-send" class="btn-primary" title="Отправить">➤</button>
+          </div>
+          <div id="chat-err" class="err-text hidden" style="font-size:11px;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Нижний стек по центру: кнопка случайного дома + блок оценки -->
     <div id="bottom-stack">
       <div id="random-bar">
@@ -414,7 +566,10 @@
             <span class="section-title" style="margin:0;">Ваша оценка (не перезаписывает чужие)</span>
             <span id="save-status" class="muted"></span>
           </div>
-          <button id="btn-close-dock" class="btn-sm" title="Снять выделение (Esc)">✕</button>
+          <div class="row">
+            <button id="btn-share-dock" class="btn-sm" title="Прикрепить этот дом к сообщению в чате">💬 В чат</button>
+            <button id="btn-close-dock" class="btn-sm" title="Снять выделение (Esc)">✕</button>
+          </div>
         </div>
 
         <div id="readonly-warn" class="warn-box hidden">
@@ -515,9 +670,12 @@
     </div>
 
     <div id="editor" class="hidden" style="display:flex; flex-direction:column; gap:12px;">
-      <div>
-        <h3 id="b-title">Дом</h3>
-        <div class="muted" id="b-meta"></div>
+      <div class="between" style="align-items:flex-start;">
+        <div style="min-width:0;">
+          <h3 id="b-title">Дом</h3>
+          <div class="muted" id="b-meta"></div>
+        </div>
+        <button id="btn-share-panel" class="btn-sm" style="flex-shrink:0;" title="Прикрепить этот дом к сообщению в чате">💬 В чат</button>
       </div>
 
       <div id="disputed-banner" class="disputed-banner hidden">
@@ -583,6 +741,7 @@
     const GEOJSON_FILES = ['./buildings.geojson'];
     const DEFAULT_CITY = 'Орехово-Зуево';
     const DEFAULT_CENTER = [55.8067, 38.9618];
+    const MAX_CHAT_RENDERED = 200;
     // =============================================
 
     const COLORS = {
@@ -603,12 +762,12 @@
     const dockEl = document.getElementById('rating-dock');
     const randomBarEl = document.getElementById('random-bar');
     const lbEl = document.getElementById('leaderboard-panel');
-    L.DomEvent.disableClickPropagation(dockEl);
-    L.DomEvent.disableScrollPropagation(dockEl);
-    L.DomEvent.disableClickPropagation(randomBarEl);
-    L.DomEvent.disableScrollPropagation(randomBarEl);
-    L.DomEvent.disableClickPropagation(lbEl);
-    L.DomEvent.disableScrollPropagation(lbEl);
+    const chatEl = document.getElementById('chat-panel');
+
+    [dockEl, randomBarEl, lbEl, chatEl].forEach(el => {
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+    });
 
     const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxNativeZoom: 19,
@@ -647,7 +806,6 @@
     const hiddenPlayers = new Set();
     let onlyMineMode = false;
     let highlightMineMode = false;
-
     let randomMode = 'all';
 
     let jumpMode = null;
@@ -662,6 +820,20 @@
     let currentUser = null;
     let isSaving = false;
     let syncInProgress = false;
+
+    // Состояние чата и онлайна
+    const tabId = 't_' + Math.random().toString(36).slice(2, 10);
+    let presenceChannel = null;
+    let onlineUsers = new Set();
+    let onlineGuests = 0;
+
+    const chatMessages = [];
+    const chatMessageIds = new Set();
+    let lastChatId = 0;
+    let chatUnread = 0;
+    let chatSending = false;
+    let chatSyncInProgress = false;
+    let attachedBuilding = null; // { id, label }
 
     function normalizeColor(c) {
       if (c === 'yellow') return 'orange';
@@ -682,6 +854,33 @@
       return d.toLocaleString('ru-RU', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function formatChatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const now = new Date();
+      const sameDay = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (sameDay) {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      }
+      return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function linkifyText(text) {
+      const escaped = escapeHtml(text);
+      return escaped.replace(/((?:https?:\/\/|www\.)[^\s<]+)/gi, raw => {
+        let url = raw;
+        let trail = '';
+        while (/[.,!?;:)\]]$/.test(url)) {
+          trail = url.slice(-1) + trail;
+          url = url.slice(0, -1);
+        }
+        if (!url) return raw;
+        const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="chat-link">${url}</a>${trail}`;
       });
     }
 
@@ -785,6 +984,315 @@
       return normalizeColor(latest.color);
     }
 
+    // ---------- Онлайн-присутствие (Supabase Presence) ----------
+    function updateOnlineUI() {
+      const named = Array.from(onlineUsers).sort((a, b) => a.localeCompare(b, 'ru'));
+      const total = named.length + onlineGuests;
+      document.getElementById('chat-online-count').textContent = total;
+      const parts = [];
+      if (named.length > 0) parts.push('Онлайн: ' + named.join(', '));
+      if (onlineGuests > 0) parts.push(`гостей: ${onlineGuests}`);
+      document.getElementById('chat-online-pill').title = parts.length > 0 ? parts.join(' • ') : 'Нет подключений';
+    }
+
+    async function trackPresence() {
+      if (!presenceChannel) return;
+      try {
+        await presenceChannel.track({
+          user: currentUser || null,
+          at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn('Presence track error:', e);
+      }
+    }
+
+    function initPresence() {
+      presenceChannel = db.channel('map-online-presence', {
+        config: { presence: { key: tabId } }
+      });
+
+      const handleSync = () => {
+        const state = presenceChannel.presenceState();
+        const users = new Set();
+        let guests = 0;
+        Object.values(state).forEach(arr => {
+          arr.forEach(meta => {
+            if (meta && meta.user) users.add(meta.user);
+            else guests++;
+          });
+        });
+        onlineUsers = users;
+        onlineGuests = guests;
+        updateOnlineUI();
+        renderLeaderboard();
+      };
+
+      presenceChannel
+        .on('presence', { event: 'sync' }, handleSync)
+        .on('presence', { event: 'join' }, handleSync)
+        .on('presence', { event: 'leave' }, handleSync)
+        .subscribe(async status => {
+          if (status === 'SUBSCRIBED') {
+            await trackPresence();
+          }
+        });
+    }
+
+    // ---------- Чат ----------
+    function setChatCollapsed(collapsed) {
+      chatEl.classList.toggle('collapsed', collapsed);
+      document.getElementById('btn-chat-toggle').textContent = collapsed ? '+' : '—';
+      try { localStorage.setItem('oz_chat_collapsed', collapsed ? '1' : '0'); } catch {}
+      if (!collapsed) {
+        chatUnread = 0;
+        updateChatUnreadUI();
+        const list = document.getElementById('chat-messages');
+        list.scrollTop = list.scrollHeight;
+      }
+    }
+
+    function updateChatUnreadUI() {
+      const badge = document.getElementById('chat-unread');
+      badge.textContent = chatUnread > 99 ? '99+' : String(chatUnread);
+      badge.classList.toggle('hidden', chatUnread <= 0);
+    }
+
+    document.getElementById('btn-chat-toggle').onclick = e => {
+      e.stopPropagation();
+      setChatCollapsed(!chatEl.classList.contains('collapsed'));
+    };
+    document.getElementById('chat-head').onclick = () => {
+      if (chatEl.classList.contains('collapsed')) {
+        setChatCollapsed(false);
+      }
+    };
+
+    try {
+      if (localStorage.getItem('oz_chat_collapsed') === '1') {
+        setChatCollapsed(true);
+      }
+    } catch {}
+
+    function updateChatAttachUI() {
+      const bar = document.getElementById('chat-attach-bar');
+      if (!attachedBuilding) {
+        bar.classList.add('hidden');
+        return;
+      }
+      document.getElementById('chat-attach-label').textContent = '📍 ' + attachedBuilding.label;
+      bar.classList.remove('hidden');
+    }
+
+    function attachCurrentBuildingToChat() {
+      if (!selectedId) return;
+      const label = document.getElementById('b-title').textContent.trim() || selectedId;
+      attachedBuilding = { id: selectedId, label };
+      updateChatAttachUI();
+      if (chatEl.classList.contains('collapsed')) {
+        setChatCollapsed(false);
+      }
+      if (currentPass && currentUser) {
+        document.getElementById('chat-input').focus();
+      }
+    }
+
+    document.getElementById('btn-share-dock').onclick = attachCurrentBuildingToChat;
+    document.getElementById('btn-share-panel').onclick = attachCurrentBuildingToChat;
+    document.getElementById('btn-chat-unattach').onclick = () => {
+      attachedBuilding = null;
+      updateChatAttachUI();
+    };
+
+    function createChatMsgNode(row) {
+      const isMine = Boolean(currentUser && row.username === currentUser);
+      const div = document.createElement('div');
+      div.className = 'chat-msg' + (isMine ? ' mine' : '');
+      div.dataset.id = String(row.id);
+
+      const bldgHtml = row.building_id
+        ? `<div><button type="button" class="chat-bldg-chip" data-bid="${escapeHtml(row.building_id)}" title="Перейти к этому дому на карте">📍 <span>${escapeHtml(row.building_label || row.building_id)}</span></button></div>`
+        : '';
+
+      const textHtml = row.message
+        ? `<div class="chat-msg-text">${linkifyText(row.message)}</div>`
+        : '';
+
+      div.innerHTML = `
+        <div class="chat-msg-head">
+          <span class="chat-msg-user">${escapeHtml(row.username)}</span>
+          <span>${escapeHtml(formatChatTime(row.created_at))}</span>
+        </div>
+        ${bldgHtml}
+        ${textHtml}
+      `;
+
+      const chip = div.querySelector('.chat-bldg-chip');
+      if (chip) {
+        chip.onclick = () => {
+          const bid = chip.dataset.bid;
+          if (layersById[bid]) {
+            selectBuilding(bid, true);
+          } else {
+            showChatError('Дом не найден в текущем GeoJSON');
+          }
+        };
+      }
+      return div;
+    }
+
+    function renderAllChatMessages() {
+      const wrap = document.getElementById('chat-messages');
+      if (chatMessages.length === 0) {
+        wrap.innerHTML = '<div class="muted">Сообщений пока нет.</div>';
+        return;
+      }
+      wrap.innerHTML = '';
+      chatMessages.forEach(row => wrap.appendChild(createChatMsgNode(row)));
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    function appendChatMessage(row, isLive = false) {
+      if (!row || row.id == null) return;
+      const numId = Number(row.id);
+      if (chatMessageIds.has(numId)) return;
+
+      chatMessageIds.add(numId);
+      if (numId > lastChatId) lastChatId = numId;
+
+      const wrap = document.getElementById('chat-messages');
+      const wasEmpty = chatMessages.length === 0;
+      const nearBottom = (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight) < 60;
+
+      chatMessages.push(row);
+      if (wasEmpty) wrap.innerHTML = '';
+      wrap.appendChild(createChatMsgNode(row));
+
+      while (chatMessages.length > MAX_CHAT_RENDERED) {
+        const removed = chatMessages.shift();
+        chatMessageIds.delete(Number(removed.id));
+        if (wrap.firstElementChild) wrap.removeChild(wrap.firstElementChild);
+      }
+
+      const isMine = Boolean(currentUser && row.username === currentUser);
+      if (isLive && !isMine && chatEl.classList.contains('collapsed')) {
+        chatUnread++;
+        updateChatUnreadUI();
+      } else if (nearBottom || isMine) {
+        wrap.scrollTop = wrap.scrollHeight;
+      }
+    }
+
+    function showChatError(msg) {
+      const el = document.getElementById('chat-err');
+      if (!msg) {
+        el.textContent = '';
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => {
+        if (el.textContent === msg) el.classList.add('hidden');
+      }, 4000);
+    }
+
+    async function loadInitialChat() {
+      try {
+        const { data, error } = await db
+          .from('chat_messages')
+          .select('*')
+          .order('id', { ascending: false })
+          .limit(MAX_CHAT_RENDERED);
+
+        if (error) throw error;
+        chatMessages.length = 0;
+        chatMessageIds.clear();
+        lastChatId = 0;
+
+        const ordered = (data || []).reverse();
+        ordered.forEach(row => {
+          chatMessages.push(row);
+          chatMessageIds.add(Number(row.id));
+          if (Number(row.id) > lastChatId) lastChatId = Number(row.id);
+        });
+        renderAllChatMessages();
+      } catch (err) {
+        console.error('Chat load error:', err);
+        document.getElementById('chat-messages').innerHTML =
+          '<div class="muted">Чат не подключён (выполните SQL-скрипт в Supabase).</div>';
+      }
+    }
+
+    async function syncNewChatMessages() {
+      if (chatSyncInProgress) return;
+      chatSyncInProgress = true;
+      try {
+        let query = db.from('chat_messages').select('*').order('id', { ascending: true }).limit(MAX_CHAT_RENDERED);
+        if (lastChatId > 0) {
+          query = query.gt('id', lastChatId);
+        }
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+          data.forEach(row => appendChatMessage(row, lastChatId > 0));
+        }
+      } catch (err) {
+        console.warn('Chat sync error:', err);
+      } finally {
+        chatSyncInProgress = false;
+      }
+    }
+
+    async function sendChatMessage() {
+      if (chatSending) return;
+      if (!currentPass || !currentUser) return;
+
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text && !attachedBuilding) return;
+
+      chatSending = true;
+      showChatError('');
+      document.getElementById('btn-chat-send').disabled = true;
+
+      const payload = {
+        p_pass: currentPass,
+        p_message: text,
+        p_building_id: attachedBuilding ? attachedBuilding.id : null,
+        p_building_label: attachedBuilding ? attachedBuilding.label : null
+      };
+
+      const { data, error } = await db.rpc('send_chat_message', payload);
+
+      chatSending = false;
+      document.getElementById('btn-chat-send').disabled = false;
+
+      if (error) {
+        if (/заблокирован|неверный пароль/i.test(error.message)) {
+          clearSession(error.message);
+        }
+        showChatError(error.message);
+        return;
+      }
+
+      input.value = '';
+      attachedBuilding = null;
+      updateChatAttachUI();
+
+      if (data) {
+        appendChatMessage(data, false);
+      }
+      input.focus();
+    }
+
+    document.getElementById('btn-chat-send').onclick = sendChatMessage;
+    document.getElementById('chat-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+
     // ---------- Кнопка случайного непроверенного дома ----------
     function getRandomCandidates() {
       const ids = Object.keys(layersById);
@@ -854,6 +1362,8 @@
       }
       updateAuthUI();
       updateAllViews();
+      renderAllChatMessages();
+      trackPresence();
       if (selectedId) refreshSelectedCard(false);
     }
 
@@ -864,6 +1374,11 @@
       document.getElementById('readonly-warn').classList.toggle('hidden', loggedIn);
       document.getElementById('btn-lb-mine').classList.toggle('hidden', !loggedIn);
       document.getElementById('lb-highlight-wrap').classList.toggle('hidden', !loggedIn);
+
+      document.getElementById('chat-readonly-note').classList.toggle('hidden', loggedIn);
+      document.getElementById('chat-form-row').classList.toggle('hidden', !loggedIn);
+      document.getElementById('btn-share-dock').disabled = !loggedIn;
+      document.getElementById('btn-share-panel').disabled = !loggedIn;
 
       if (loggedIn) {
         document.getElementById('active-user-label').textContent = currentUser;
@@ -902,6 +1417,8 @@
         msgEl.textContent = '';
         updateAuthUI();
         updateAllViews();
+        renderAllChatMessages();
+        trackPresence();
         if (selectedId) refreshSelectedCard(true);
       } else if (data.status === 'need_username') {
         document.getElementById('name-step').classList.remove('hidden');
@@ -1012,13 +1529,17 @@
         const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
         const isMine = currentUser && item.user === currentUser;
         const isChecked = onlyMineMode ? isMine : !hiddenPlayers.has(item.user);
+        const isOnline = onlineUsers.has(item.user);
         const rankClass = rank <= 3 ? `r${rank}` : '';
 
         return `
           <div class="lb-row ${isMine ? 'mine' : ''} ${isChecked ? '' : 'unchecked'}">
             <input type="checkbox" class="lb-chk" data-user="${escapeHtml(item.user)}" ${isChecked ? 'checked' : ''} title="Показывать/скрывать покрасы игрока" />
             <span class="lb-rank ${rankClass}">#${rank}</span>
-            <span class="lb-name" data-solo="${escapeHtml(item.user)}" title="${escapeHtml(item.user)} — клик, чтобы оставить на карте только этого игрока">${escapeHtml(item.user)}${isMine ? ' (вы)' : ''}</span>
+            <span class="lb-name" data-solo="${escapeHtml(item.user)}" title="${escapeHtml(item.user)} — клик, чтобы оставить на карте только этого игрока">
+              ${isOnline ? '<span class="online-dot" title="Сейчас на карте"></span>' : ''}
+              <span class="lb-name-txt">${escapeHtml(item.user)}${isMine ? ' (вы)' : ''}</span>
+            </span>
             <div class="lb-stats">
               <div class="lb-pct">${pct}%</div>
               <div class="lb-cnt">${item.count} д.</div>
@@ -1572,7 +2093,8 @@
       forceCanvasRedraw();
 
       if (zoomTo) {
-        const leftPad = lbEl.classList.contains('collapsed') ? 60 : 290;
+        const leftOpen = !lbEl.classList.contains('collapsed') || !chatEl.classList.contains('collapsed');
+        const leftPad = leftOpen ? 330 : 60;
         map.fitBounds(layer.getBounds(), {
           maxZoom: 18,
           paddingTopLeft: [leftPad, 50],
@@ -1861,15 +2383,22 @@
       }
     }
 
-    document.getElementById('btn-sync').onclick = () => syncMarks(true);
+    document.getElementById('btn-sync').onclick = () => {
+      syncMarks(true);
+      syncNewChatMessages();
+    };
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) syncMarks(false);
+      if (!document.hidden) {
+        syncMarks(false);
+        syncNewChatMessages();
+      }
     });
 
     // ---------- Запуск ----------
     async function init() {
       const statusEl = document.getElementById('load-status');
       await restoreSession();
+      initPresence();
 
       try {
         statusEl.textContent = 'Загрузка контуров домов...';
@@ -1923,8 +2452,9 @@
         return;
       }
 
-      await syncMarks(true);
+      await Promise.all([syncMarks(true), loadInitialChat()]);
 
+      // Realtime-подписка на разметку домов
       db.channel('marks-live')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'building_marks' }, payload => {
           const row = payload.new;
@@ -1939,8 +2469,20 @@
         })
         .subscribe();
 
+      // Realtime-подписка на новые сообщения чата
+      db.channel('chat-live')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
+          if (payload && payload.new) {
+            appendChatMessage(payload.new, true);
+          }
+        })
+        .subscribe();
+
       setInterval(() => {
-        if (!document.hidden) syncMarks(false);
+        if (!document.hidden) {
+          syncMarks(false);
+          syncNewChatMessages();
+        }
       }, 15000);
     }
 
